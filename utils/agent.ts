@@ -39,22 +39,55 @@ export async function codingAgent(prompt: string) {
           }
         },
       }),
-      read_file: tool({ 
+      read_file: tool({
         description:
-          "Read the contents of a given relative file path. Use this when you want to see what's inside a file. Do not use this with directory names.", 
+          "Read the contents of a given relative file path. Use this when you want to see what's inside a file. Do not use this with directory names.",
+        inputSchema: z.object({
+          path: z
+            .string()
+            .describe("The relative path of a file in the working directory."),
+        }),
+        execute: async ({ path }) => {
+          try {
+            console.log(`Reading file at '${path}'`);
+            const output = fs.readFileSync(path, "utf-8");
+            return { path, output };
+          } catch (error) {
+            console.error(`Error reading file at ${path}:`, error.message);
+            return { path, error: error.message };
+          }
+        },
+      }),
+      edit_file: tool({ 
+        description:
+          "Make edits to a text file or create a new file. Replaces 'old_str' with 'new_str' in the given file. 'old_str' and 'new_str' MUST be different from each other. If the file specified with path doesn't exist, it will be created.", 
           inputSchema: z.object({ 
-            path: z 
+            path: z.string().describe("The path to the file"), 
+            old_str: z 
               .string() 
-              .describe("The relative path of a file in the working directory."), 
+              .nullable() 
+              .describe( 
+                "Text to search for - must match exactly and must only have one match exactly", 
+              ), 
+            new_str: z.string().describe("Text to replace old_str with"), 
           }), 
-          execute: async ({ path }) => { 
+          execute: async ({ path, old_str, new_str }) => { 
             try { 
-              console.log(`Reading file at '${path}'`); 
-              const output = fs.readFileSync(path, "utf-8"); 
-              return { path, output }; 
-            } catch (error) { 
-              console.error(`Error reading file at ${path}:`, error.message); 
-              return { path, error: error.message }; 
+              const fileExists = fs.existsSync(path); 
+              if (fileExists && old_str !== null) { 
+                console.log(`Editing file '${path}'`); 
+                const fileContents = fs.readFileSync(path, "utf-8"); 
+                const newContents = fileContents.replace(old_str, new_str); 
+                fs.writeFileSync(path, newContents); 
+                return { path, success: true, action: "edit" }; 
+              } else { 
+                console.log(`Creating file '${path}'`); 
+                fs.writeFileSync(path, new_str); 
+                return { path, success: true, action: "create" }; 
+              } 
+            } catch (e) { 
+              console.error(`Error editing file ${path}:`, e); 
+              return { error: e, success: false }; 
             } 
           }, 
       }), 
