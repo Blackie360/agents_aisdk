@@ -1,10 +1,11 @@
 import { generateText, stepCountIs, tool } from "ai";
+import { google } from "@ai-sdk/google";
 import z from "zod/v4";
 import fs from "fs";
 
 export async function codingAgent(prompt: string) {
   const result = await generateText({
-    model: "openai/gpt-4.1-mini",
+    model: google("gemini-2.0-flash"),
     prompt,
     system:
       "You are a coding agent. You will be working with js/ts projects. Your responses must be concise.",
