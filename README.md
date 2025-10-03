@@ -1,6 +1,6 @@
-# AI SDK 5 Coding Agent Starter Project
+# AI SDK 5 Document Processing Agent
 
-Starter project for Vercel Ship "Building agents with the AI SDK". This coding agent is built with AI SDK 5, Vercel AI Gateway, and Vercel Sandbox. It can read and modify GitHub repositories.
+Document Processing Agent built with AI SDK 5 and Google Gemini 2.0 Flash. This agent can analyze documents, extract text content, detect file types, summarize, search within documents, and export structured analysis.
 
 ## Setup
 
@@ -34,18 +34,39 @@ To create a GitHub Personal Access Token (PAT):
 7. Copy the token immediately (you won't be able to see it again)
 8. Add it to your `.env.local` file as `GITHUB_TOKEN`
 
+## Features
+
+- **Document Type Detection**: Automatically detect file types (txt, md, json, csv, html, **PDF**)
+- **Text Extraction**: Extract and clean text content from various formats including PDFs
+- **Content Analysis**: Generate summaries, extract entities (emails, URLs, names), identify topics
+- **Document Search**: Search for terms within documents with context
+- **Analysis Export**: Save structured analysis results to JSON
+
 ## Usage
 
+### API Endpoint
+
 ```bash
-curl -X POST https://your-deployment.vercel.app/api/agent \
+curl -X POST https://your-deployment.vercel.app/api/document \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "update readme to say hey were so back",
-    "repoUrl": "https://github.com/nicoalbanese/ai-sdk-langgraph/"
+    "prompt": "Analyze the README.md file and provide a summary",
+    "filePath": "./README.md"
   }'
 ```
 
 Parameters:
 
 - `prompt` - What you want the agent to do
-- `repoUrl` - GitHub repository URL
+- `filePath` (optional) - Path to document file
+- `content` (optional) - Raw document content
+
+### Test Locally
+
+```bash
+# Run default test
+pnpm test
+
+# Run document processing tests
+pnpm test-document
+```

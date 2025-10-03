@@ -2,14 +2,16 @@ import { generateText, stepCountIs, tool } from "ai";
 import { google } from "@ai-sdk/google";
 import z from "zod/v4";
 import fs from "fs";
+import path from "path";
+import pdfParse from "pdf-parse";
 
-export async function codingAgent(prompt: string) {
+export async function documentAgent(prompt: string) {
   const result = await generateText({
     model: google("gemini-2.0-flash"),
     prompt,
     system:
-      "You are a coding agent. You will be working with js/ts projects. Your responses must be concise.",
-    stopWhen: stepCountIs(10),
+      "You are a Document Processing Agent. You analyze documents, extract text content, detect file types, summarize, search within documents, and export structured analysis. Your responses must be concise.",
+    stopWhen: stepCountIs(15),
     tools: {
       list_files: tool({
         description:
@@ -24,18 +26,15 @@ export async function codingAgent(prompt: string) {
         }),
         execute: async ({ path: generatedPath }) => {
           if (generatedPath === ".git" || generatedPath === "node_modules") {
-            return { error: "You cannot read the path: ", generatedPath };
+            return { error: "Cannot list protected path", generatedPath };
           }
-          const path = generatedPath?.trim() ? generatedPath : ".";
+          const targetPath = generatedPath?.trim() ? generatedPath : ".";
           try {
-            console.log(`Listing files at '${path}'`);
-            const output = fs.readdirSync(path, {
-              recursive: false,
-            });
-            return { path, output };
+            const output = fs.readdirSync(targetPath, { recursive: false });
+            return { path: targetPath, output };
           } catch (e) {
             console.error(`Error listing files:`, e);
-            return { error: e };
+            return { error: e instanceof Error ? e.message : String(e) };
           }
         },
       }),
@@ -49,52 +48,218 @@ export async function codingAgent(prompt: string) {
         }),
         execute: async ({ path }) => {
           try {
-            console.log(`Reading file at '${path}'`);
             const output = fs.readFileSync(path, "utf-8");
             return { path, output };
           } catch (error) {
-            console.error(`Error reading file at ${path}:`, error.message);
-            return { path, error: error.message };
+            console.error(`Error reading file at ${path}:`, error instanceof Error ? error.message : String(error));
+            return { path, error: error instanceof Error ? error.message : String(error) };
           }
         },
       }),
-      edit_file: tool({ 
-        description:
-          "Make edits to a text file or create a new file. Replaces 'old_str' with 'new_str' in the given file. 'old_str' and 'new_str' MUST be different from each other. If the file specified with path doesn't exist, it will be created.", 
-          inputSchema: z.object({ 
-            path: z.string().describe("The path to the file"), 
-            old_str: z 
-              .string() 
-              .nullable() 
-              .describe( 
-                "Text to search for - must match exactly and must only have one match exactly", 
-              ), 
-            new_str: z.string().describe("Text to replace old_str with"), 
-          }), 
-          execute: async ({ path, old_str, new_str }) => { 
-            try { 
-              const fileExists = fs.existsSync(path); 
-              if (fileExists && old_str !== null) { 
-                console.log(`Editing file '${path}'`); 
-                const fileContents = fs.readFileSync(path, "utf-8"); 
-                const newContents = fileContents.replace(old_str, new_str); 
-                fs.writeFileSync(path, newContents); 
-                return { path, success: true, action: "edit" }; 
-              } else { 
-                console.log(`Creating file '${path}'`); 
-                fs.writeFileSync(path, new_str); 
-                return { path, success: true, action: "create" }; 
-              } 
-            } catch (e) { 
-              console.error(`Error editing file ${path}:`, e); 
-              return { error: e, success: false }; 
-            } 
-          }, 
-      }), 
+      detect_document_type: tool({
+        description: "Detect the type of a document based on its extension and content.",
+        inputSchema: z.object({
+          filePath: z.string().describe("The path to the document file"),
+        }),
+        execute: async ({ filePath }) => {
+          try {
+            if (filePath === ".git" || filePath === "node_modules") {
+              return { error: "Cannot analyze protected path", filePath };
+            }
+            const stats = fs.statSync(filePath);
+            const ext = path.extname(filePath).toLowerCase();
+            const typeMap: Record<string, string> = {
+              ".txt": "txt",
+              ".md": "markdown",
+              ".json": "json",
+              ".csv": "csv",
+              ".html": "html",
+              ".htm": "html",
+              ".pdf": "pdf",
+            };
+            const detectedType = typeMap[ext] || "unknown";
+            return {
+              filePath,
+              type: detectedType,
+              extension: ext,
+              sizeBytes: stats.size,
+              lastModified: stats.mtime,
+            };
+          } catch (e) {
+            return { error: e instanceof Error ? e.message : String(e), filePath };
+          }
+        },
+      }),
+      extract_text_content: tool({
+        description: "Extract readable text content from supported formats: txt, md, json, csv, html, pdf.",
+        inputSchema: z.object({
+          filePath: z.string().describe("The path to the document file"),
+        }),
+        execute: async ({ filePath }) => {
+          if (filePath === ".git" || filePath === "node_modules") {
+            return { error: "Cannot read protected path", filePath };
+          }
+          try {
+            const ext = path.extname(filePath).toLowerCase();
+            let text = "";
+            let metadata: Record<string, any> = {};
+
+            // Handle PDF separately (binary format)
+            if (ext === ".pdf") {
+              try {
+                const dataBuffer = fs.readFileSync(filePath);
+                const pdfResult = await pdfParse.pdf(dataBuffer);
+                text = pdfResult.text;
+                metadata = { pages: pdfResult.numpages, isPdf: true };
+              } catch (pdfErr) {
+                return { error: `PDF parse error: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`, filePath };
+              }
+            } else {
+              // Handle text-based formats
+              const raw = fs.readFileSync(filePath, "utf-8");
+              text = raw;
+              
+              switch (ext) {
+                case ".json": {
+                  try {
+                    const parsed = JSON.parse(raw);
+                    text = JSON.stringify(parsed, null, 2);
+                  } catch {}
+                  break;
+                }
+                case ".csv": {
+                  const lines = raw.split(/\r?\n/);
+                  text = `CSV rows: ${lines.length}\n\n${raw}`;
+                  break;
+                }
+                case ".html":
+                case ".htm": {
+                  text = raw
+                    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gsi, "")
+                    .replace(/<[^>]*>/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                  break;
+                }
+              }
+            }
+            
+            return { 
+              filePath, 
+              extractedText: text, 
+              wordCount: text.split(/\s+/).filter(Boolean).length,
+              metadata 
+            };
+          } catch (e) {
+            return { error: e instanceof Error ? e.message : String(e), filePath };
+          }
+        },
+      }),
+      analyze_document: tool({
+        description: "Analyze document content: summary, entities, topics.",
+        inputSchema: z.object({
+          content: z.string().describe("Content to analyze"),
+          analyzeType: z
+            .enum(["full", "summary_only", "entities_only", "topics_only"])
+            .default("full"),
+        }),
+        execute: async ({ content, analyzeType }) => {
+          try {
+            const fragments = content.split(/[.!?]+/).filter((s) => s.trim().length > 10);
+            const words = content.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+            const obj: Record<string, any> = { wordCount: words.length };
+            
+            if (analyzeType === "full" || analyzeType === "summary_only") {
+              const summaryFragments = [
+                fragments[0],
+                fragments[Math.floor(fragments.length / 2)],
+                fragments[fragments.length - 1],
+              ].filter(Boolean);
+              obj.summary = summaryFragments.map((s) => s.trim()).join(". ") + ".";
+            }
+            
+            if (analyzeType === "full" || analyzeType === "entities_only") {
+              const caps = content.match(/\b[A-Z][a-z]+\b/g) || [];
+              const emails = content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+              const phones = content.match(/[\+]?[1-9]?[0-9]{10,11}/g) || [];
+              const urls = content.match(/https?:\/\/[^\s]+/g) || [];
+              obj.entities = [...new Set([...caps.slice(0, 20), ...emails, ...phones, ...urls])];
+            }
+            
+            if (analyzeType === "full" || analyzeType === "topics_only") {
+              const freq: Record<string, number> = {};
+              const stopWords = new Set([
+                "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
+                "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will",
+                "would", "could", "should",
+              ]);
+              words.forEach((w) => {
+                if (w.length > 3 && !stopWords.has(w)) {
+                  freq[w] = (freq[w] || 0) + 1;
+                }
+              });
+              obj.topics = Object.entries(freq)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 10)
+                .map(([word]) => word);
+            }
+            return { analysisData: obj };
+          } catch (e) {
+            return { error: e instanceof Error ? e.message : String(e) };
+          }
+        },
+      }),
+      search_document: tool({
+        description: "Search for terms within document content.",
+        inputSchema: z.object({
+          content: z.string().describe("Document content to search"),
+          query: z.string().describe("Search term"),
+          contextLength: z.number().min(20).max(400).default(50),
+        }),
+        execute: async ({ content, query, contextLength }) => {
+          try {
+            const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+            const matches: Array<{ text: string; position: number }> = [];
+            let m;
+            while ((m = re.exec(content)) !== null) {
+              const start = Math.max(0, m.index - contextLength);
+              const end = Math.min(content.length, m.index + m[0].length + contextLength);
+              const text = content.slice(start, end).trim();
+              matches.push({ text, position: m.index });
+            }
+            return { query, matches, totalMatches: matches.length };
+          } catch (e) {
+            return { error: e instanceof Error ? e.message : String(e) };
+          }
+        },
+      }),
+      save_analysis: tool({
+        description: "Save analysis output to a structured JSON file.",
+        inputSchema: z.object({
+          analysisData: z
+            .object({
+              filename: z.string(),
+              summary: z.string(),
+              keyPoints: z.array(z.string()).optional(),
+              entities: z.array(z.string()).optional(),
+              topics: z.array(z.string()).optional(),
+              wordCount: z.number(),
+              sourceFile: z.string(),
+            })
+            .describe("Analysis data to save"),
+          outputPath: z.string().describe("Where to save the JSON file"),
+        }),
+        execute: async ({ analysisData, outputPath }) => {
+          try {
+            const payload = { ...analysisData, generatedAt: new Date().toISOString() };
+            fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2));
+            return { success: true, savedPath: outputPath };
+          } catch (e) {
+            return { error: e instanceof Error ? e.message : String(e) };
+          }
+        },
+      }),
     },
   });
-
-  return {
-    response: result.text,
-  };
+  return { response: result.text };
 }

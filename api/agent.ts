@@ -1,11 +1,11 @@
-import { codingAgent } from "../utils/agent";
+import { documentAgent } from "../utils/agent";
 
 export async function POST(request: Request) {
   const body = await request.json();
   const { prompt }: { prompt: string } = body;
 
   try {
-    const result = await codingAgent(prompt);
+    const result = await documentAgent(prompt);
     return new Response(JSON.stringify({ result }), {
       headers: { "Content-Type": "application/json" },
     });
