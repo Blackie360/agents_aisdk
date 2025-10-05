@@ -3,16 +3,41 @@ import { google } from "@ai-sdk/google";
 import z from "zod/v4";
 import fs from "fs";
 import path from "path";
-import pdfParse from "pdf-parse";
+import * as pdfParse from "pdf-parse";
 
 export async function documentAgent(prompt: string) {
   const result = await generateText({
     model: google("gemini-2.0-flash"),
     prompt,
     system:
-      "You are a Document Processing Agent. You analyze documents, extract text content, detect file types, summarize, search within documents, and export structured analysis. Your responses must be concise.",
+      "You are a Document Processing Agent. You MUST use tools to read actual file contents. You are FORBIDDEN from making assumptions about file contents based on filenames. When asked to analyze a file, you MUST first extract its text content using the extract_text_content tool, then analyze that content.",
     stopWhen: stepCountIs(15),
     tools: {
+      change_directory: tool({
+        description: "Change the current working directory to navigate to different folders.",
+        inputSchema: z.object({
+          path: z.string().describe("The directory path to change to (relative or absolute)"),
+        }),
+        execute: async ({ path }) => {
+          try {
+            const resolvedPath = path.startsWith('/') ? path : path;
+            process.chdir(resolvedPath);
+            const currentDir = process.cwd();
+            return { 
+              success: true, 
+              path: resolvedPath, 
+              currentDirectory: currentDir,
+              message: `Successfully changed to directory: ${currentDir}`
+            };
+          } catch (error) {
+            return { 
+              success: false, 
+              path, 
+              error: error instanceof Error ? error.message : String(error) 
+            };
+          }
+        },
+      }),
       list_files: tool({
         description:
           "List files and directories at a given path. If no path is provided, lists files in the current directory.",
@@ -110,7 +135,7 @@ export async function documentAgent(prompt: string) {
                 const dataBuffer = fs.readFileSync(filePath);
                 const pdfResult = await pdfParse.pdf(dataBuffer);
                 text = pdfResult.text;
-                metadata = { pages: pdfResult.numpages, isPdf: true };
+                metadata = { isPdf: true };
               } catch (pdfErr) {
                 return { error: `PDF parse error: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`, filePath };
               }
@@ -261,5 +286,10 @@ export async function documentAgent(prompt: string) {
       }),
     },
   });
-  return { response: result.text };
+  return { 
+    response: result.text, 
+    toolCalls: result.toolCalls,
+    toolResults: result.toolResults,
+    usage: result.usage 
+  };
 }

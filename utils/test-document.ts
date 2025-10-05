@@ -8,15 +8,33 @@ async function testDocumentAgent() {
 
   try {
     
-    console.log("📄 Test 1: Basic Document Analysis");
+    // console.log("📄 Test 1: List Files");
+    // const result1 = await documentAgent(
+    //   "List all files in the current directory"
+    // );
+    // console.log("Response:", result1.response);
+    // console.log("---\n");
+    console.log("📄 Test 1: List Files");
     const result1 = await documentAgent(
-      "Analyze the AIGovernance.pdf file and provide a comprehensive summary of what this project is about"
+      "check current directory and list the files in that directory"
     );
     console.log("Response:", result1.response);
     console.log("---\n");
 
-    
+    console.log("📄 Test 2: Analyze AIGovernance.pdf");
+    const result2 = await documentAgent(
+      "Analyze the AIGovernance.pdf file and provide a comprehensive summary"
+    );
+    console.log("Response:", result2.response);
+    console.log("---\n");
 
+    console.log("📄 Test 3: Analyze next.html");
+    const result3 = await documentAgent(
+      "Analyze all the files in this directory /home/blackie/Documents/ and provide a comprehensive summary"
+    );
+    console.log("Response:", result3.response);
+    console.log("---\n");
+    
     console.log("✅ All tests completed successfully!");
 
   } catch (error) {
@@ -25,4 +43,3 @@ async function testDocumentAgent() {
 }
 
 testDocumentAgent();
-
