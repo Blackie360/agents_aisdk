@@ -1,6 +1,6 @@
 import { generateText, stepCountIs, tool } from "ai";
 import { google } from "@ai-sdk/google";
-import z from "zod/v4";
+import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import * as pdfParse from "pdf-parse";
@@ -241,7 +241,7 @@ export async function documentAgent(prompt: string) {
           query: z.string().describe("Search term"),
           contextLength: z.number().min(20).max(400).default(50),
         }),
-        execute: async ({ content, query, contextLength }) => {
+        execute: async ({ content, query, contextLength = 50 }) => {
           try {
             const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
             const matches: Array<{ text: string; position: number }> = [];

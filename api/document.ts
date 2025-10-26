@@ -1,8 +1,8 @@
 import { documentAgent } from "../utils/agent";
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { prompt, filePath, content }: { prompt: string; filePath?: string; content?: string } = body;
+  const body = await request.json() as { prompt: string; filePath?: string; content?: string };
+  const { prompt, filePath, content } = body;
 
   if (!prompt) {
     return new Response(JSON.stringify({ error: "Prompt is required" }), {
