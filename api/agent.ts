@@ -1,8 +1,8 @@
 import { documentAgent } from "../utils/agent";
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { prompt }: { prompt: string } = body;
+  const body = await request.json() as { prompt: string };
+  const { prompt } = body;
 
   try {
     const result = await documentAgent(prompt);
