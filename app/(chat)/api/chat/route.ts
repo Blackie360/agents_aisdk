@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     (message) => message.content.length > 0,
   );
 
-  const result = await streamText({
+  const result = streamText({
     model: geminiProModel,
     system: `\n
         - you help users book flights!
@@ -214,22 +214,18 @@ export async function POST(request: Request) {
         },
       },
     },
-    onFinish: async ({ responseMessages }) => {
+    onFinish: async ({ response }) => {
       if (session.user && session.user.id) {
         try {
           await saveChat({
             id,
-            messages: [...coreMessages, ...responseMessages],
+            messages: [...coreMessages, ...response.messages],
             userId: session.user.id,
           });
         } catch (error) {
           console.error("Failed to save chat");
         }
       }
-    },
-    experimental_telemetry: {
-      isEnabled: true,
-      functionId: "stream-text",
     },
   });
 
