@@ -1,8 +1,11 @@
 import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+import { existsSync } from "fs";
 
+// Try .env.local first, then fall back to .env
+const envPath = existsSync(".env.local") ? ".env.local" : ".env";
 config({
-  path: ".env.local",
+  path: envPath,
 });
 
 export default defineConfig({

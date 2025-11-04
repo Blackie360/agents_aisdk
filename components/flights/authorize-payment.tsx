@@ -51,6 +51,14 @@ export function AuthorizePayment({
     }
   };
 
+  if (!reservation) {
+    return (
+      <div className="bg-muted p-4 rounded-lg flex flex-col gap-2">
+        <div className="text font-medium">Loading payment information...</div>
+      </div>
+    );
+  }
+
   return reservation?.hasCompletedPayment ? (
     <div className="bg-emerald-500 p-4 rounded-lg gap-4 flex flex-row justify-between items-center">
       <div className="dark:text-emerald-950 text-emerald-50 font-medium">

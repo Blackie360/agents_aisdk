@@ -23,6 +23,8 @@ export default function Page() {
   );
 
   useEffect(() => {
+    if (!state?.status) return;
+    
     if (state.status === "failed") {
       toast.error("Invalid credentials!");
     } else if (state.status === "invalid_data") {
@@ -30,7 +32,7 @@ export default function Page() {
     } else if (state.status === "success") {
       router.refresh();
     }
-  }, [state.status, router]);
+  }, [state?.status, router]);
 
   const handleSubmit = (formData: FormData) => {
     setEmail(formData.get("email") as string);
