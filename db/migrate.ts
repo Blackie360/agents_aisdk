@@ -4,11 +4,16 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { existsSync } from "fs";
 
-// Try .env.local first, then fall back to .env
-const envPath = existsSync(".env.local") ? ".env.local" : ".env";
-config({
-  path: envPath,
-});
+// Only load .env files in local development (not in Vercel/production)
+// In production, environment variables are already available via process.env
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+  const envPath = existsSync(".env.local") ? ".env.local" : ".env";
+  if (existsSync(envPath)) {
+    config({
+      path: envPath,
+    });
+  }
+}
 
 const runMigrate = async () => {
   if (!process.env.POSTGRES_URL) {
