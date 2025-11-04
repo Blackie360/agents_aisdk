@@ -16,11 +16,23 @@ if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
 }
 
 const runMigrate = async () => {
-  if (!process.env.POSTGRES_URL) {
-    throw new Error("POSTGRES_URL is not defined");
+  // Check for POSTGRES_URL or Vercel Postgres environment variables
+  const postgresUrl =
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.DATABASE_URL;
+
+  if (!postgresUrl) {
+    console.warn(
+      "⚠️  POSTGRES_URL is not defined. Skipping migrations.",
+      "Make sure POSTGRES_URL is set in your Vercel environment variables.",
+    );
+    // Don't throw error, just exit gracefully
+    // Migrations can be run manually or when the app starts
+    process.exit(0);
   }
 
-  const connection = postgres(process.env.POSTGRES_URL, { max: 1 });
+  const connection = postgres(postgresUrl, { max: 1 });
   const db = drizzle(connection);
 
   console.log("⏳ Running migrations...");
