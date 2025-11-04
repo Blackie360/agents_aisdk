@@ -8,7 +8,6 @@ import { Message as PreviewMessage } from "@/components/custom/message";
 import { useScrollToBottom } from "@/components/custom/use-scroll-to-bottom";
 
 import { MultimodalInput } from "./multimodal-input";
-import { Overview } from "./overview";
 
 export function Chat({
   id,
@@ -62,8 +61,6 @@ export function Chat({
           ref={messagesContainerRef}
           className="flex flex-col gap-4 h-full w-dvw items-center overflow-y-scroll"
         >
-          {messages.length === 0 && <Overview />}
-
           {messages.map((message) => (
             <PreviewMessage key={message.id} chatId={id} message={message} />
           ))}
