@@ -1,7 +1,6 @@
 import {
   generateId,
   type ModelMessage,
-  type ModelToolMessage,
   type UIMessage,
 } from "ai";
 import { clsx, type ClassValue } from "clsx";
@@ -64,11 +63,11 @@ export function convertToUIMessages(
   for (const message of messages) {
     if (message.role === "tool") {
       // Store tool results for the next assistant message
-      const toolMessage = message as ModelToolMessage;
+      const toolMessage = message as ModelMessage & { role: "tool" };
       if (Array.isArray(toolMessage.content)) {
         for (const content of toolMessage.content) {
           if (content.type === "tool-result") {
-            pendingToolResults.set(content.toolCallId, content.result);
+            pendingToolResults.set(content.toolCallId, (content as any).result || (content as any).output);
           }
         }
       }
@@ -92,7 +91,7 @@ export function convertToUIMessages(
           parts.push({
             type: `tool-${content.toolName}`,
             toolCallId: content.toolCallId,
-            input: content.args,
+            input: content.input,
             output: toolResult,
             state:
               toolResult !== undefined ? "output-available" : "input-available",
@@ -113,7 +112,7 @@ export function convertToUIMessages(
 }
 
 export function getTitleFromChat(chat: Chat) {
-  const messages = convertToUIMessages(chat.messages as Array<ModelMessage>);
+  const messages = convertToUIMessages((chat.messages as unknown) as Array<ModelMessage>);
   const firstMessage = messages[0];
 
   if (!firstMessage || firstMessage.parts.length === 0) {

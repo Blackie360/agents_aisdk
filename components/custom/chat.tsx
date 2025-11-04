@@ -1,7 +1,7 @@
 "use client";
 
-import { Attachment, type UIMessage } from "ai";
-import { useChat } from "ai/react";
+import { type UIMessage, type FileUIPart, DefaultChatTransport } from "ai";
+import { useChat } from "@ai-sdk/react";
 import { useState } from "react";
 
 import { Message as PreviewMessage } from "@/components/custom/message";
@@ -17,21 +17,43 @@ export function Chat({
   id: string;
   initialMessages: Array<UIMessage>;
 }) {
-  const { messages, handleSubmit, input, setInput, append, isLoading, stop } =
-    useChat({
-      id,
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status, stop } = useChat({
+    id,
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
       body: { id },
-      initialMessages,
-      maxSteps: 10,
-      onFinish: () => {
-        window.history.replaceState({}, "", `/chat/${id}`);
-      },
-    });
+    }),
+    messages: initialMessages,
+    onFinish: () => {
+      window.history.replaceState({}, "", `/chat/${id}`);
+    },
+  });
+
+  const isLoading = status === "streaming" || status === "submitted";
+
+  const handleSubmit = (e?: { preventDefault?: () => void }, options?: any) => {
+    e?.preventDefault?.();
+    if (input.trim()) {
+      sendMessage(
+        {
+          text: input,
+          files: attachments.length > 0 ? attachments : undefined,
+        },
+        {
+          ...options,
+          body: { id, ...options?.body },
+        },
+      );
+      setInput("");
+      setAttachments([]);
+    }
+  };
 
   const [messagesContainerRef, messagesEndRef] =
     useScrollToBottom<HTMLDivElement>();
 
-  const [attachments, setAttachments] = useState<Array<Attachment>>([]);
+  const [attachments, setAttachments] = useState<Array<FileUIPart>>([]);
 
   return (
     <div className="flex flex-row justify-center pb-4 md:pb-8 h-dvh bg-background">
@@ -62,7 +84,7 @@ export function Chat({
             attachments={attachments}
             setAttachments={setAttachments}
             messages={messages}
-            append={append}
+            sendMessage={sendMessage as any}
           />
         </form>
       </div>

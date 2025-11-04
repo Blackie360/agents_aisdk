@@ -52,8 +52,10 @@ export const Message = ({
                 <PreviewAttachment
                   key={index}
                   attachment={{
+                    type: "file",
                     url: part.url,
-                    contentType: part.mediaType,
+                    filename: part.filename,
+                    mediaType: part.mediaType,
                   }}
                 />
               );
@@ -64,27 +66,27 @@ export const Message = ({
                 const toolName = getToolName(part);
                 const { toolCallId, state, output } = part;
 
-                if (state === "output-available" && output !== undefined) {
+                if (state === "output-available" && output !== undefined && output !== null) {
                   return (
                     <div key={toolCallId}>
                       {toolName === "getWeather" ? (
-                        <Weather weatherAtLocation={output} />
+                        <Weather weatherAtLocation={output as any} />
                       ) : toolName === "displayFlightStatus" ? (
-                        <FlightStatus flightStatus={output} />
+                        <FlightStatus flightStatus={output as any} />
                       ) : toolName === "searchFlights" ? (
-                        <ListFlights chatId={chatId} results={output} />
+                        <ListFlights chatId={chatId} results={output as any} />
                       ) : toolName === "selectSeats" ? (
-                        <SelectSeats chatId={chatId} availability={output} />
+                        <SelectSeats chatId={chatId} availability={output as any} />
                       ) : toolName === "createReservation" ? (
                         Object.keys(output).includes("error") ? null : (
-                          <CreateReservation reservation={output} />
+                          <CreateReservation reservation={output as any} />
                         )
                       ) : toolName === "authorizePayment" ? (
-                        <AuthorizePayment intent={output} />
+                        <AuthorizePayment intent={output as any} />
                       ) : toolName === "displayBoardingPass" ? (
-                        <DisplayBoardingPass boardingPass={output} />
+                        <DisplayBoardingPass boardingPass={output as any} />
                       ) : toolName === "verifyPayment" ? (
-                        <VerifyPayment result={output} />
+                        <VerifyPayment result={output as any} />
                       ) : (
                         <div>{JSON.stringify(output, null, 2)}</div>
                       )}

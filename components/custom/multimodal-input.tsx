@@ -1,9 +1,8 @@
 "use client";
 
 import {
-  Attachment,
+  type FileUIPart,
   ChatRequestOptions,
-  CreateMessage,
   type UIMessage,
 } from "ai";
 import { motion } from "framer-motion";
@@ -45,19 +44,19 @@ export function MultimodalInput({
   attachments,
   setAttachments,
   messages,
-  append,
+  sendMessage,
   handleSubmit,
 }: {
   input: string;
   setInput: (value: string) => void;
   isLoading: boolean;
   stop: () => void;
-  attachments: Array<Attachment>;
-  setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
+  attachments: Array<FileUIPart>;
+  setAttachments: Dispatch<SetStateAction<Array<FileUIPart>>>;
   messages: Array<UIMessage>;
-  append: (
-    message: UIMessage | CreateMessage,
-    chatRequestOptions?: ChatRequestOptions,
+  sendMessage: (
+    message: { text: string; files?: FileUIPart[] } | { parts: Array<any> },
+    options?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (
     event?: {
@@ -91,16 +90,24 @@ export function MultimodalInput({
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
   const submitForm = useCallback(() => {
-    handleSubmit(undefined, {
-      experimental_attachments: attachments,
-    });
+    if (input.trim()) {
+      sendMessage(
+        {
+          text: input,
+          files: attachments.length > 0 ? attachments : undefined,
+        },
+        {
+          body: { id: messages[0]?.id || "" },
+        },
+      );
+      setAttachments([]);
+      setInput("");
 
-    setAttachments([]);
-
-    if (width && width > 768) {
-      textareaRef.current?.focus();
+      if (width && width > 768) {
+        textareaRef.current?.focus();
+      }
     }
-  }, [attachments, handleSubmit, setAttachments, width]);
+  }, [attachments, sendMessage, input, setInput, setAttachments, width, messages]);
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
@@ -117,9 +124,10 @@ export function MultimodalInput({
         const { url, pathname, contentType } = data;
 
         return {
+          type: "file" as const,
           url,
-          name: pathname,
-          contentType: contentType,
+          filename: pathname,
+          mediaType: contentType,
         };
       } else {
         const { error } = await response.json();
@@ -173,9 +181,8 @@ export function MultimodalInput({
               >
                 <button
                   onClick={async () => {
-                    append({
-                      role: "user",
-                      content: suggestedAction.action,
+                    sendMessage({
+                      text: suggestedAction.action,
                     });
                   }}
                   className="border-none bg-muted/50 w-full text-left border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-300 rounded-lg p-3 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex flex-col"
@@ -209,9 +216,10 @@ export function MultimodalInput({
             <PreviewAttachment
               key={filename}
               attachment={{
+                type: "file",
                 url: "",
-                name: filename,
-                contentType: "",
+                filename: filename,
+                mediaType: "",
               }}
               isUploading={true}
             />
