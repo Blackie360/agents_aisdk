@@ -1,9 +1,8 @@
 import {
-  CoreMessage,
-  CoreToolMessage,
   generateId,
-  Message,
-  ToolInvocation,
+  type ModelMessage,
+  type ModelToolMessage,
+  type UIMessage,
 } from "ai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -55,88 +54,74 @@ export function generateUUID(): string {
   });
 }
 
-function addToolMessageToChat({
-  toolMessage,
-  messages,
-}: {
-  toolMessage: CoreToolMessage;
-  messages: Array<Message>;
-}): Array<Message> {
-  return messages.map((message) => {
-    if (message.toolInvocations) {
-      return {
-        ...message,
-        toolInvocations: message.toolInvocations.map((toolInvocation) => {
-          const toolResult = toolMessage.content.find(
-            (tool) => tool.toolCallId === toolInvocation.toolCallId,
-          );
-
-          if (toolResult) {
-            return {
-              ...toolInvocation,
-              state: "result",
-              result: toolResult.result,
-            };
-          }
-
-          return toolInvocation;
-        }),
-      };
-    }
-
-    return message;
-  });
-}
-
+// Convert ModelMessage (from database) to UIMessage (for UI)
 export function convertToUIMessages(
-  messages: Array<CoreMessage>,
-): Array<Message> {
-  return messages.reduce((chatMessages: Array<Message>, message) => {
+  messages: Array<ModelMessage>,
+): Array<UIMessage> {
+  const uiMessages: Array<UIMessage> = [];
+  let pendingToolResults: Map<string, any> = new Map();
+
+  for (const message of messages) {
     if (message.role === "tool") {
-      return addToolMessageToChat({
-        toolMessage: message as CoreToolMessage,
-        messages: chatMessages,
-      });
+      // Store tool results for the next assistant message
+      const toolMessage = message as ModelToolMessage;
+      if (Array.isArray(toolMessage.content)) {
+        for (const content of toolMessage.content) {
+          if (content.type === "tool-result") {
+            pendingToolResults.set(content.toolCallId, content.result);
+          }
+        }
+      }
+      continue; // Skip tool messages in UI
     }
 
-    let textContent = "";
-    let toolInvocations: Array<ToolInvocation> = [];
+    const parts: UIMessage["parts"] = [];
 
+    // Extract text content
     if (typeof message.content === "string") {
-      textContent = message.content;
+      if (message.content.length > 0) {
+        parts.push({ type: "text", text: message.content });
+      }
     } else if (Array.isArray(message.content)) {
       for (const content of message.content) {
         if (content.type === "text") {
-          textContent += content.text;
+          parts.push({ type: "text", text: content.text });
         } else if (content.type === "tool-call") {
-          toolInvocations.push({
-            state: "call",
+          // Convert tool-call to tool UI part
+          const toolResult = pendingToolResults.get(content.toolCallId);
+          parts.push({
+            type: `tool-${content.toolName}`,
             toolCallId: content.toolCallId,
-            toolName: content.toolName,
-            args: content.args,
+            input: content.args,
+            output: toolResult,
+            state:
+              toolResult !== undefined ? "output-available" : "input-available",
           });
+          pendingToolResults.delete(content.toolCallId);
         }
       }
     }
 
-    chatMessages.push({
+    uiMessages.push({
       id: generateId(),
       role: message.role,
-      content: textContent,
-      toolInvocations,
+      parts: parts.length > 0 ? parts : [{ type: "text", text: "" }],
     });
+  }
 
-    return chatMessages;
-  }, []);
+  return uiMessages;
 }
 
 export function getTitleFromChat(chat: Chat) {
-  const messages = convertToUIMessages(chat.messages as Array<CoreMessage>);
+  const messages = convertToUIMessages(chat.messages as Array<ModelMessage>);
   const firstMessage = messages[0];
 
-  if (!firstMessage) {
+  if (!firstMessage || firstMessage.parts.length === 0) {
     return "Untitled";
   }
 
-  return firstMessage.content;
+  const firstTextPart = firstMessage.parts.find((part) => part.type === "text");
+  return firstTextPart && "text" in firstTextPart
+    ? firstTextPart.text
+    : "Untitled";
 }

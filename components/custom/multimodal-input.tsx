@@ -1,6 +1,11 @@
 "use client";
 
-import { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai";
+import {
+  Attachment,
+  ChatRequestOptions,
+  CreateMessage,
+  type UIMessage,
+} from "ai";
 import { motion } from "framer-motion";
 import React, {
   useRef,
@@ -49,9 +54,9 @@ export function MultimodalInput({
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
-  messages: Array<Message>;
+  messages: Array<UIMessage>;
   append: (
-    message: Message | CreateMessage,
+    message: UIMessage | CreateMessage,
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (

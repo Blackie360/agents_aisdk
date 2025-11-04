@@ -1,6 +1,6 @@
 "use client";
 
-import { Attachment, Message } from "ai";
+import { Attachment, type UIMessage } from "ai";
 import { useChat } from "ai/react";
 import { useState } from "react";
 
@@ -15,7 +15,7 @@ export function Chat({
   initialMessages,
 }: {
   id: string;
-  initialMessages: Array<Message>;
+  initialMessages: Array<UIMessage>;
 }) {
   const { messages, handleSubmit, input, setInput, append, isLoading, stop } =
     useChat({
@@ -43,14 +43,7 @@ export function Chat({
           {messages.length === 0 && <Overview />}
 
           {messages.map((message) => (
-            <PreviewMessage
-              key={message.id}
-              chatId={id}
-              role={message.role}
-              content={message.content}
-              attachments={message.experimental_attachments}
-              toolInvocations={message.toolInvocations}
-            />
+            <PreviewMessage key={message.id} chatId={id} message={message} />
           ))}
 
           <div

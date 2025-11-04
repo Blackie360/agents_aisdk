@@ -1,8 +1,7 @@
 "use client";
 
-import { Attachment, ToolInvocation } from "ai";
+import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { motion } from "framer-motion";
-import { ReactNode } from "react";
 
 import { BotIcon, UserIcon } from "./icons";
 import { Markdown } from "./markdown";
@@ -18,17 +17,13 @@ import { VerifyPayment } from "../flights/verify-payment";
 
 export const Message = ({
   chatId,
-  role,
-  content,
-  toolInvocations,
-  attachments,
+  message,
 }: {
   chatId: string;
-  role: string;
-  content: string | ReactNode;
-  toolInvocations: Array<ToolInvocation> | undefined;
-  attachments?: Array<Attachment>;
+  message: UIMessage;
 }) => {
+  const { role, parts } = message;
+
   return (
     <motion.div
       className={`flex flex-row gap-4 px-4 w-full md:w-[500px] md:px-0 first-of-type:pt-20`}
@@ -40,77 +35,87 @@ export const Message = ({
       </div>
 
       <div className="flex flex-col gap-2 w-full">
-        {content && typeof content === "string" && (
-          <div className="text-zinc-800 dark:text-zinc-300 flex flex-col gap-4">
-            <Markdown>{content}</Markdown>
-          </div>
-        )}
+        {parts.map((part, index) => {
+          switch (part.type) {
+            case "text":
+              return (
+                <div
+                  key={index}
+                  className="text-zinc-800 dark:text-zinc-300 flex flex-col gap-4"
+                >
+                  <Markdown>{part.text}</Markdown>
+                </div>
+              );
 
-        {toolInvocations && (
-          <div className="flex flex-col gap-4">
-            {toolInvocations.map((toolInvocation) => {
-              const { toolName, toolCallId, state } = toolInvocation;
+            case "file":
+              return (
+                <PreviewAttachment
+                  key={index}
+                  attachment={{
+                    url: part.url,
+                    contentType: part.mediaType,
+                  }}
+                />
+              );
 
-              if (state === "result") {
-                const { result } = toolInvocation;
+            default:
+              // Handle tool invocations
+              if (isToolUIPart(part)) {
+                const toolName = getToolName(part);
+                const { toolCallId, state, output } = part;
 
-                return (
-                  <div key={toolCallId}>
-                    {toolName === "getWeather" ? (
-                      <Weather weatherAtLocation={result} />
-                    ) : toolName === "displayFlightStatus" ? (
-                      <FlightStatus flightStatus={result} />
-                    ) : toolName === "searchFlights" ? (
-                      <ListFlights chatId={chatId} results={result} />
-                    ) : toolName === "selectSeats" ? (
-                      <SelectSeats chatId={chatId} availability={result} />
-                    ) : toolName === "createReservation" ? (
-                      Object.keys(result).includes("error") ? null : (
-                        <CreateReservation reservation={result} />
-                      )
-                    ) : toolName === "authorizePayment" ? (
-                      <AuthorizePayment intent={result} />
-                    ) : toolName === "displayBoardingPass" ? (
-                      <DisplayBoardingPass boardingPass={result} />
-                    ) : toolName === "verifyPayment" ? (
-                      <VerifyPayment result={result} />
-                    ) : (
-                      <div>{JSON.stringify(result, null, 2)}</div>
-                    )}
-                  </div>
-                );
-              } else {
-                return (
-                  <div key={toolCallId} className="skeleton">
-                    {toolName === "getWeather" ? (
-                      <Weather />
-                    ) : toolName === "displayFlightStatus" ? (
-                      <FlightStatus />
-                    ) : toolName === "searchFlights" ? (
-                      <ListFlights chatId={chatId} />
-                    ) : toolName === "selectSeats" ? (
-                      <SelectSeats chatId={chatId} />
-                    ) : toolName === "createReservation" ? (
-                      <CreateReservation />
-                    ) : toolName === "authorizePayment" ? (
-                      <AuthorizePayment />
-                    ) : toolName === "displayBoardingPass" ? (
-                      <DisplayBoardingPass />
-                    ) : null}
-                  </div>
-                );
+                if (state === "output-available" && output !== undefined) {
+                  return (
+                    <div key={toolCallId}>
+                      {toolName === "getWeather" ? (
+                        <Weather weatherAtLocation={output} />
+                      ) : toolName === "displayFlightStatus" ? (
+                        <FlightStatus flightStatus={output} />
+                      ) : toolName === "searchFlights" ? (
+                        <ListFlights chatId={chatId} results={output} />
+                      ) : toolName === "selectSeats" ? (
+                        <SelectSeats chatId={chatId} availability={output} />
+                      ) : toolName === "createReservation" ? (
+                        Object.keys(output).includes("error") ? null : (
+                          <CreateReservation reservation={output} />
+                        )
+                      ) : toolName === "authorizePayment" ? (
+                        <AuthorizePayment intent={output} />
+                      ) : toolName === "displayBoardingPass" ? (
+                        <DisplayBoardingPass boardingPass={output} />
+                      ) : toolName === "verifyPayment" ? (
+                        <VerifyPayment result={output} />
+                      ) : (
+                        <div>{JSON.stringify(output, null, 2)}</div>
+                      )}
+                    </div>
+                  );
+                } else {
+                  // Tool is still loading/calling
+                  return (
+                    <div key={toolCallId} className="skeleton">
+                      {toolName === "getWeather" ? (
+                        <Weather />
+                      ) : toolName === "displayFlightStatus" ? (
+                        <FlightStatus />
+                      ) : toolName === "searchFlights" ? (
+                        <ListFlights chatId={chatId} />
+                      ) : toolName === "selectSeats" ? (
+                        <SelectSeats chatId={chatId} />
+                      ) : toolName === "createReservation" ? (
+                        <CreateReservation />
+                      ) : toolName === "authorizePayment" ? (
+                        <AuthorizePayment />
+                      ) : toolName === "displayBoardingPass" ? (
+                        <DisplayBoardingPass />
+                      ) : null}
+                    </div>
+                  );
+                }
               }
-            })}
-          </div>
-        )}
-
-        {attachments && (
-          <div className="flex flex-row gap-2">
-            {attachments.map((attachment) => (
-              <PreviewAttachment key={attachment.url} attachment={attachment} />
-            ))}
-          </div>
-        )}
+              return null;
+          }
+        })}
       </div>
     </motion.div>
   );

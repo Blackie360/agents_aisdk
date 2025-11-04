@@ -1,4 +1,9 @@
-import { convertToCoreMessages, Message, streamText } from "ai";
+import {
+  convertToModelMessages,
+  generateId,
+  streamText,
+  type UIMessage,
+} from "ai";
 import { z } from "zod";
 
 import { geminiProModel } from "@/ai";
@@ -19,7 +24,7 @@ import {
 import { generateUUID } from "@/lib/utils";
 
 export async function POST(request: Request) {
-  const { id, messages }: { id: string; messages: Array<Message> } =
+  const { id, messages }: { id: string; messages: Array<UIMessage> } =
     await request.json();
 
   const session = await auth();
@@ -28,9 +33,7 @@ export async function POST(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const coreMessages = convertToCoreMessages(messages).filter(
-    (message) => message.content.length > 0,
-  );
+  const modelMessages = convertToModelMessages(messages);
 
   const result = streamText({
     model: geminiProModel,
@@ -53,7 +56,7 @@ export async function POST(request: Request) {
           - display boarding pass (DO NOT display boarding pass without verifying payment)
         '
       `,
-    messages: coreMessages,
+    messages: modelMessages,
     tools: {
       getWeather: {
         description: "Get the current weather at a location",
@@ -214,12 +217,17 @@ export async function POST(request: Request) {
         },
       },
     },
-    onFinish: async ({ response }) => {
+  });
+
+  return result.toUIMessageStreamResponse({
+    originalMessages: messages,
+    generateMessageId: () => generateId(),
+    onFinish: async ({ messages: allMessages, responseMessage }) => {
       if (session.user && session.user.id) {
         try {
           await saveChat({
             id,
-            messages: [...coreMessages, ...response.messages],
+            messages: allMessages,
             userId: session.user.id,
           });
         } catch (error) {
@@ -228,8 +236,6 @@ export async function POST(request: Request) {
       }
     },
   });
-
-  return result.toDataStreamResponse({});
 }
 
 export async function DELETE(request: Request) {
