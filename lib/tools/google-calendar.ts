@@ -1,6 +1,36 @@
 import { google } from "googleapis";
 import { z } from "zod";
+
 import { auth } from "@/app/(auth)/auth";
+import { getGoogleRefreshToken } from "@/db/queries";
+
+const DEFAULT_CALENDAR_TIME_ZONE = "Africa/Nairobi";
+
+function normalizeEventDateTime(
+  block?: {
+    dateTime?: string | null;
+    date?: string | null;
+    timeZone?: string | null;
+  } | null,
+) {
+  if (!block) {
+    return undefined;
+  }
+
+  const normalized = { ...block } as {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+
+  if (!normalized.timeZone) {
+    if (normalized.dateTime || normalized.date) {
+      normalized.timeZone = DEFAULT_CALENDAR_TIME_ZONE;
+    }
+  }
+
+  return normalized;
+}
 
 // Initialize Google Calendar API client
 async function getCalendarClient() {
@@ -10,7 +40,15 @@ async function getCalendarClient() {
     throw new Error("User not authenticated");
   }
 
-  // Get OAuth2 credentials from environment variables
+  // Get user's stored refresh token from database
+  const userToken = await getGoogleRefreshToken({
+    userId: session.user.id,
+  });
+
+  if (!userToken) {
+    throw new Error("Google Calendar not connected. Please connect your Google account.");
+  }
+
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/auth/callback/google";
@@ -25,14 +63,9 @@ async function getCalendarClient() {
     redirectUri
   );
 
-  // In a real implementation, you'd store and retrieve refresh tokens per user
-  // For now, we'll use a shared refresh token from env
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
-  if (refreshToken) {
-    oauth2Client.setCredentials({
-      refresh_token: refreshToken,
-    });
-  }
+  oauth2Client.setCredentials({
+    refresh_token: userToken,
+  });
 
   return google.calendar({ version: "v3", auth: oauth2Client });
 }
@@ -112,8 +145,8 @@ export const googleCalendarTools = {
           requestBody: {
             summary: eventData.summary,
             description: eventData.description,
-            start: eventData.start,
-            end: eventData.end,
+            start: normalizeEventDateTime(eventData.start) ?? undefined,
+            end: normalizeEventDateTime(eventData.end) ?? undefined,
             location: eventData.location,
             attendees: eventData.attendees,
           },
@@ -178,14 +211,17 @@ export const googleCalendarTools = {
         });
 
         // Merge updates with existing event
+        const normalizedStart = normalizeEventDateTime(updates.start) ?? existingEvent.data.start;
+        const normalizedEnd = normalizeEventDateTime(updates.end) ?? existingEvent.data.end;
+
         const response = await calendar.events.update({
           calendarId,
           eventId,
           requestBody: {
             ...existingEvent.data,
             ...updates,
-            start: updates.start || existingEvent.data.start,
-            end: updates.end || existingEvent.data.end,
+            start: normalizedStart,
+            end: normalizedEnd,
           },
         });
 

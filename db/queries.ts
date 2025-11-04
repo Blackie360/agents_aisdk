@@ -23,10 +23,15 @@ export async function getUser(email: string): Promise<Array<User>> {
 }
 
 export async function createUser(email: string, password: string) {
-  let salt = genSaltSync(10);
-  let hash = hashSync(password, salt);
-
   try {
+    // If password is empty (OAuth user), insert without hashing
+    if (!password || password === "") {
+      return await db.insert(user).values({ email, password: null });
+    }
+    
+    let salt = genSaltSync(10);
+    let hash = hashSync(password, salt);
+
     return await db.insert(user).values({ email, password: hash });
   } catch (error) {
     console.error("Failed to create user in database");
@@ -139,4 +144,78 @@ export async function updateReservation({
       hasCompletedPayment,
     })
     .where(eq(reservation.id, id));
+}
+
+export async function saveGoogleRefreshToken({
+  userId,
+  refreshToken,
+}: {
+  userId: string;
+  refreshToken: string;
+}) {
+  try {
+    return await db
+      .update(user)
+      .set({
+        googleRefreshToken: refreshToken,
+        isCalendarConnected: true,
+      })
+      .where(eq(user.id, userId));
+  } catch (error) {
+    console.error("Failed to save Google refresh token");
+    throw error;
+  }
+}
+
+export async function getGoogleRefreshToken({
+  userId,
+}: {
+  userId: string;
+}): Promise<string | null> {
+  try {
+    const [selectedUser] = await db
+      .select({ googleRefreshToken: user.googleRefreshToken })
+      .from(user)
+      .where(eq(user.id, userId));
+    return selectedUser?.googleRefreshToken || null;
+  } catch (error) {
+    console.error("Failed to get Google refresh token");
+    throw error;
+  }
+}
+
+export async function getCalendarConnectionStatus({
+  userId,
+}: {
+  userId: string;
+}): Promise<boolean> {
+  try {
+    const [selectedUser] = await db
+      .select({ isCalendarConnected: user.isCalendarConnected })
+      .from(user)
+      .where(eq(user.id, userId));
+
+    return !!selectedUser?.isCalendarConnected;
+  } catch (error) {
+    console.error("Failed to get calendar connection status");
+    throw error;
+  }
+}
+
+export async function setCalendarConnectionStatus({
+  userId,
+  isConnected,
+}: {
+  userId: string;
+  isConnected: boolean;
+}) {
+  try {
+    return await db
+      .update(user)
+      .set({ isCalendarConnected: isConnected })
+      .where(eq(user.id, userId));
+  } catch (error) {
+    console.error("Failed to update calendar connection status");
+    throw error;
+  }
 }

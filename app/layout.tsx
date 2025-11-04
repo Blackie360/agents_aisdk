@@ -2,7 +2,6 @@ import { Metadata } from "next";
 import { Toaster } from "sonner";
 
 import { Navbar } from "@/components/custom/navbar";
-import { ThemeProvider } from "@/components/custom/theme-provider";
 
 import "./globals.css";
 
@@ -18,18 +17,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <Toaster position="top-center" />
-          <Navbar />
-          {children}
-        </ThemeProvider>
+    <html lang="en" className="dark">
+      <body className="antialiased dark">
+        <Toaster position="top-center" />
+        <Navbar />
+        {children}
       </body>
     </html>
   );

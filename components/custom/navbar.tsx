@@ -5,7 +5,6 @@ import { auth, signOut } from "@/app/(auth)/auth";
 
 import { History } from "./history";
 import { SlashIcon } from "./icons";
-import { ThemeToggle } from "./theme-toggle";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -49,9 +48,6 @@ export const Navbar = async () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <ThemeToggle />
-              </DropdownMenuItem>
               <DropdownMenuItem className="p-1 z-50">
                 <form
                   className="w-full"
