@@ -37,24 +37,40 @@ export const Message = ({
     return null;
   }
 
+  const isAssistant = role === "assistant";
+
   return (
     <motion.div
-      className={`flex flex-row gap-4 px-4 w-full md:w-[500px] md:px-0 first-of-type:pt-20`}
+      className={`flex flex-row gap-4 px-4 w-full first-of-type:pt-20 ${
+        isAssistant ? "justify-start" : "justify-end"
+      }`}
       initial={{ y: 5, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
     >
-      <div className="size-[24px] border rounded-sm p-1 flex flex-col justify-center items-center shrink-0 text-zinc-500">
-        {role === "assistant" ? <BotIcon /> : <UserIcon />}
-      </div>
+      {isAssistant && (
+        <div className="size-[24px] border rounded-sm p-1 flex flex-col justify-center items-center shrink-0 text-zinc-500">
+          <BotIcon />
+        </div>
+      )}
 
-      <div className="flex flex-col gap-2 w-full">
+      <div
+        className={`flex flex-col gap-2 max-w-[80%] md:max-w-[500px] ${
+          isAssistant
+            ? "bg-muted rounded-lg px-4 py-3"
+            : "bg-primary text-primary-foreground rounded-lg px-4 py-3"
+        }`}
+      >
         {visibleParts.map((part, index) => {
           switch (part.type) {
             case "text":
               return (
                 <div
                   key={index}
-                  className="text-zinc-800 dark:text-zinc-300 flex flex-col gap-4"
+                  className={`flex flex-col gap-4 ${
+                    isAssistant
+                      ? "text-foreground"
+                      : "text-primary-foreground"
+                  }`}
                 >
                   <Markdown>{part.text}</Markdown>
                 </div>
@@ -116,6 +132,12 @@ export const Message = ({
           }
         })}
       </div>
+
+      {!isAssistant && (
+        <div className="size-[24px] border rounded-sm p-1 flex flex-col justify-center items-center shrink-0 text-zinc-500">
+          <UserIcon />
+        </div>
+      )}
     </motion.div>
   );
 };
