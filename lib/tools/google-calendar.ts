@@ -51,7 +51,12 @@ async function getCalendarClient() {
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/auth/callback/google";
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 
+    (process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}/api/auth/callback/google`
+      : process.env.NEXT_PUBLIC_APP_URL 
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback/google`
+        : "http://localhost:3000/api/auth/callback/google");
 
   if (!clientId || !clientSecret) {
     throw new Error("Google Calendar API credentials not configured");
