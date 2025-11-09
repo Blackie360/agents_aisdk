@@ -14,13 +14,6 @@ import { BotIcon, UserIcon } from "./icons";
 import { Markdown } from "./markdown";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
-import { AuthorizePayment } from "../flights/authorize-payment";
-import { DisplayBoardingPass } from "../flights/boarding-pass";
-import { CreateReservation } from "../flights/create-reservation";
-import { FlightStatus } from "../flights/flight-status";
-import { ListFlights } from "../flights/list-flights";
-import { SelectSeats } from "../flights/select-seats";
-import { VerifyPayment } from "../flights/verify-payment";
 
 export const Message = ({
   chatId,
@@ -91,22 +84,6 @@ export const Message = ({
                     <div key={toolCallId}>
                       {toolName === "getWeather" ? (
                         <Weather weatherAtLocation={output as any} />
-                      ) : toolName === "displayFlightStatus" ? (
-                        <FlightStatus flightStatus={output as any} />
-                      ) : toolName === "searchFlights" ? (
-                        <ListFlights chatId={chatId} results={output as any} />
-                      ) : toolName === "selectSeats" ? (
-                        <SelectSeats chatId={chatId} availability={output as any} />
-                      ) : toolName === "createReservation" ? (
-                        Object.keys(output).includes("error") ? null : (
-                          <CreateReservation reservation={output as any} />
-                        )
-                      ) : toolName === "authorizePayment" ? (
-                        <AuthorizePayment intent={output as any} />
-                      ) : toolName === "displayBoardingPass" ? (
-                        <DisplayBoardingPass boardingPass={output as any} />
-                      ) : toolName === "verifyPayment" ? (
-                        <VerifyPayment result={output as any} />
                       ) : toolName === "listEvents" ? (
                         <CalendarEventsList data={output as any} />
                       ) : toolName === "createEvent" ? (
@@ -126,20 +103,6 @@ export const Message = ({
                     <div key={toolCallId} className="skeleton">
                       {toolName === "getWeather" ? (
                         <Weather />
-                      ) : toolName === "displayFlightStatus" ? (
-                        <FlightStatus />
-                      ) : toolName === "searchFlights" ? (
-                        <ListFlights chatId={chatId} />
-                      ) : toolName === "selectSeats" ? (
-                        <SelectSeats chatId={chatId} />
-                      ) : toolName === "createReservation" ? (
-                        <CreateReservation />
-                      ) : toolName === "authorizePayment" ? (
-                        <AuthorizePayment />
-                      ) : toolName === "displayBoardingPass" ? (
-                        <DisplayBoardingPass />
-                      ) : toolName === "verifyPayment" ? (
-                        <VerifyPayment />
                       ) : toolName === "listEvents" ? (
                         <CalendarEventsListSkeleton />
                       ) : toolName === "createEvent" || toolName === "updateEvent" ? (
