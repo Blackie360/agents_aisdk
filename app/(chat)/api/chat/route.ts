@@ -47,9 +47,17 @@ Key principles:
 - Use tools efficiently to help with calendar management, scheduling, and coordination
 - Today's date is ${new Date().toLocaleDateString()}
 
+IMPORTANT - Calendar Access:
+- You have direct access to the user's Google Calendar through the available tools
+- When users ask about their calendar, events, or schedule, IMMEDIATELY use the listEvents tool
+- Use "primary" as the default calendarId unless the user specifies otherwise
+- Don't ask for calendar IDs - just use "primary" by default
+- If a user asks "show me my calendar" or "check my calendar" or "upcoming events", immediately call listEvents with calendarId: "primary"
+- Be proactive: fetch calendar data first, then present it to the user
+
 When scheduling events:
 - Always ask for: title, date/time, duration, location (if applicable), description, and attendees
-- Check for conflicts before creating events
+- Check for conflicts before creating events using checkAvailability tool
 - Provide confirmation details after scheduling
 
 For content planning:
@@ -91,7 +99,8 @@ Be concise but thorough in your responses, and always ask clarifying questions w
             userId: session.user.id,
           });
         } catch (error) {
-          console.error("Failed to save chat");
+          console.error("Failed to save chat:", error);
+          // Don't throw - chat functionality should continue even if saving fails
         }
       }
     },

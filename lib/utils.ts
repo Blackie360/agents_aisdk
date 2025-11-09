@@ -113,41 +113,75 @@ export function convertToUIMessages(
 
 export function getTitleFromChat(chat: Chat) {
   try {
-    const messages = convertToUIMessages((chat.messages as unknown) as Array<ModelMessage>);
+    // Extract directly from raw messages stored in database for better reliability
+    const rawMessages = (chat.messages as unknown) as Array<ModelMessage>;
     
-    // Try both user and assistant messages to find a title
-    for (const message of messages) {
-      if (!message || !message.parts || message.parts.length === 0) {
-        continue;
+    if (!rawMessages || rawMessages.length === 0) {
+      // Fallback to date if no messages
+      if (chat.createdAt) {
+        const date = new Date(chat.createdAt);
+        return `Chat ${date.toLocaleDateString()}`;
       }
+      return "Untitled";
+    }
 
-      // Try to find text content
-      for (const part of message.parts) {
-        if (part.type === "text" && "text" in part && typeof part.text === "string") {
-          const text = part.text.trim();
-          if (text.length > 0) {
-            // Truncate to first 50 characters for display
-            return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+    // Prioritize the first message (usually user's input)
+    const firstMessage = rawMessages[0];
+    
+    if (firstMessage) {
+      // Extract text content directly from message content
+      if (typeof firstMessage.content === "string") {
+        const text = firstMessage.content.trim();
+        if (text.length > 0) {
+          return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+        }
+      } else if (Array.isArray(firstMessage.content)) {
+        // Look for text content in array format
+        for (const content of firstMessage.content) {
+          if (content.type === "text" && typeof content.text === "string") {
+            const text = content.text.trim();
+            if (text.length > 0) {
+              return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+            }
           }
         }
       }
+    }
 
-      // If no text part, check for tool parts
-      for (const part of message.parts) {
-        if (part.type?.startsWith("tool-")) {
-          const toolName = part.type.replace("tool-", "") || "tool";
-          return `Tool: ${toolName}`;
+    // If first message has no text, try second message (assistant response)
+    if (rawMessages.length > 1) {
+      const secondMessage = rawMessages[1];
+      if (secondMessage) {
+        if (typeof secondMessage.content === "string") {
+          const text = secondMessage.content.trim();
+          if (text.length > 0) {
+            return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+          }
+        } else if (Array.isArray(secondMessage.content)) {
+          for (const content of secondMessage.content) {
+            if (content.type === "text" && typeof content.text === "string") {
+              const text = content.text.trim();
+              if (text.length > 0) {
+                return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+              }
+            }
+          }
         }
       }
     }
+
+    // Fallback: use date-based title only if no messages have text content
+    if (chat.createdAt) {
+      const date = new Date(chat.createdAt);
+      return `Chat ${date.toLocaleDateString()}`;
+    }
   } catch (error) {
     console.error("Error generating chat title:", error);
-  }
-
-  // Fallback: use date-based title
-  if (chat.createdAt) {
-    const date = new Date(chat.createdAt);
-    return `Chat ${date.toLocaleDateString()}`;
+    // If error occurs, try date fallback
+    if (chat.createdAt) {
+      const date = new Date(chat.createdAt);
+      return `Chat ${date.toLocaleDateString()}`;
+    }
   }
 
   return "Untitled";

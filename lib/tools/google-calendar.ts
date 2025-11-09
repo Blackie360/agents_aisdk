@@ -72,11 +72,11 @@ async function getCalendarClient() {
 
 export const googleCalendarTools = {
   listEvents: {
-    description: "List upcoming events from Google Calendar",
+    description: "List upcoming events from the user's Google Calendar. Use this tool immediately when users ask about their calendar, events, or schedule. Defaults to 'primary' calendar - use this unless user specifies a different calendar.",
     inputSchema: z.object({
-      maxResults: z.number().optional().default(10).describe("Maximum number of events to return"),
-      timeMin: z.string().optional().describe("Lower bound (exclusive) for an event's start time in RFC3339 format"),
-      calendarId: z.string().optional().default("primary").describe("Calendar ID to list events from"),
+      maxResults: z.number().optional().default(10).describe("Maximum number of events to return (default: 10)"),
+      timeMin: z.string().optional().describe("Lower bound (exclusive) for an event's start time in RFC3339 format. If not provided, defaults to current time."),
+      calendarId: z.string().optional().default("primary").describe("Calendar ID - use 'primary' for the user's main calendar (this is the default and should be used unless user specifies otherwise)"),
     }),
     execute: async ({ maxResults = 10, timeMin, calendarId = "primary" }) => {
       try {

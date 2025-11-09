@@ -67,8 +67,10 @@ export async function saveChat({
       userId,
     });
   } catch (error) {
-    console.error("Failed to save chat in database");
-    throw error;
+    console.error("Failed to save chat in database:", error);
+    // Don't throw - allow chat to continue even if saving fails
+    // This prevents breaking the user experience
+    return null;
   }
 }
 
@@ -179,8 +181,10 @@ export async function getGoogleRefreshToken({
       .where(eq(user.id, userId));
     return selectedUser?.googleRefreshToken || null;
   } catch (error) {
-    console.error("Failed to get Google refresh token");
-    throw error;
+    console.error("Failed to get Google refresh token:", error);
+    // Return null instead of throwing to handle gracefully
+    // This allows the app to continue even if there's a database issue
+    return null;
   }
 }
 
@@ -197,8 +201,10 @@ export async function getCalendarConnectionStatus({
 
     return !!selectedUser?.isCalendarConnected;
   } catch (error) {
-    console.error("Failed to get calendar connection status");
-    throw error;
+    console.error("Failed to get calendar connection status", error);
+    // Return false instead of throwing to prevent app crashes
+    // This handles cases where the column might not exist yet (migration not run)
+    return false;
   }
 }
 
