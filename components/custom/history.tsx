@@ -181,9 +181,10 @@ export const History = ({ user }: { user: User | undefined }) => {
                     >
                       <Link
                         href={`/chat/${chat.id}`}
-                        className="text-ellipsis overflow-hidden text-left py-2 pl-2 rounded-lg outline-zinc-900"
+                        className="flex-1 min-w-0 text-left py-2 pl-2 rounded-lg outline-zinc-900 break-words"
+                        title={getTitleFromChat(chat)}
                       >
-                        {getTitleFromChat(chat)}
+                        <span className="block truncate">{getTitleFromChat(chat) || "Untitled"}</span>
                       </Link>
                     </Button>
 

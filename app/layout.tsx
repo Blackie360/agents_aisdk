@@ -2,14 +2,13 @@ import { Metadata } from "next";
 import { Toaster } from "sonner";
 
 import { Navbar } from "@/components/custom/navbar";
-import { ThemeProvider } from "@/components/custom/theme-provider";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://gemini.vercel.ai"),
-  title: "Next.js Gemini Chatbot",
-  description: "Next.js chatbot template using the AI SDK and Gemini.",
+  title: "Community Management Assistant",
+  description: "AI-powered community management assistant with Google Calendar integration.",
 };
 
 export default async function RootLayout({
@@ -18,18 +17,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <Toaster position="top-center" />
-          <Navbar />
-          {children}
-        </ThemeProvider>
+    <html lang="en" className="dark">
+      <body className="antialiased dark">
+        <Toaster position="top-center" />
+        <Navbar />
+        {children}
       </body>
     </html>
   );

@@ -5,7 +5,6 @@ import { auth, signOut } from "@/app/(auth)/auth";
 
 import { History } from "./history";
 import { SlashIcon } from "./icons";
-import { ThemeToggle } from "./theme-toggle";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -33,7 +32,7 @@ export const Navbar = async () => {
               <SlashIcon size={16} />
             </div>
             <div className="text-sm dark:text-zinc-300 truncate w-28 md:w-fit">
-              Next.js Gemini Chatbot
+              Community Management Assistant
             </div>
           </div>
         </div>
@@ -49,9 +48,6 @@ export const Navbar = async () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <ThemeToggle />
-              </DropdownMenuItem>
               <DropdownMenuItem className="p-1 z-50">
                 <form
                   className="w-full"

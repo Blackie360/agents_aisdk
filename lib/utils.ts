@@ -112,15 +112,77 @@ export function convertToUIMessages(
 }
 
 export function getTitleFromChat(chat: Chat) {
-  const messages = convertToUIMessages((chat.messages as unknown) as Array<ModelMessage>);
-  const firstMessage = messages[0];
+  try {
+    // Extract directly from raw messages stored in database for better reliability
+    const rawMessages = (chat.messages as unknown) as Array<ModelMessage>;
+    
+    if (!rawMessages || rawMessages.length === 0) {
+      // Fallback to date if no messages
+      if (chat.createdAt) {
+        const date = new Date(chat.createdAt);
+        return `Chat ${date.toLocaleDateString()}`;
+      }
+      return "Untitled";
+    }
 
-  if (!firstMessage || firstMessage.parts.length === 0) {
-    return "Untitled";
+    // Prioritize the first message (usually user's input)
+    const firstMessage = rawMessages[0];
+    
+    if (firstMessage) {
+      // Extract text content directly from message content
+      if (typeof firstMessage.content === "string") {
+        const text = firstMessage.content.trim();
+        if (text.length > 0) {
+          return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+        }
+      } else if (Array.isArray(firstMessage.content)) {
+        // Look for text content in array format
+        for (const content of firstMessage.content) {
+          if (content.type === "text" && typeof content.text === "string") {
+            const text = content.text.trim();
+            if (text.length > 0) {
+              return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+            }
+          }
+        }
+      }
+    }
+
+    // If first message has no text, try second message (assistant response)
+    if (rawMessages.length > 1) {
+      const secondMessage = rawMessages[1];
+      if (secondMessage) {
+        if (typeof secondMessage.content === "string") {
+          const text = secondMessage.content.trim();
+          if (text.length > 0) {
+            return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+          }
+        } else if (Array.isArray(secondMessage.content)) {
+          for (const content of secondMessage.content) {
+            if (content.type === "text" && typeof content.text === "string") {
+              const text = content.text.trim();
+              if (text.length > 0) {
+                return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback: use date-based title only if no messages have text content
+    if (chat.createdAt) {
+      const date = new Date(chat.createdAt);
+      return `Chat ${date.toLocaleDateString()}`;
+    }
+  } catch (error) {
+    console.error("Error generating chat title:", error);
+    // If error occurs, try date fallback
+    if (chat.createdAt) {
+      const date = new Date(chat.createdAt);
+      return `Chat ${date.toLocaleDateString()}`;
+    }
   }
 
-  const firstTextPart = firstMessage.parts.find((part) => part.type === "text");
-  return firstTextPart && "text" in firstTextPart
-    ? firstTextPart.text
-    : "Untitled";
+  return "Untitled";
 }
