@@ -1,73 +1,288 @@
-<a href="https://chat.vercel.ai/">
-  <img alt="Next.js 15 and App Router-ready AI chatbot." src="app/(chat)/opengraph-image.png">
-  <h1 align="center">Next.js Gemini Chatbot</h1>
-</a>
+# CommunitySync
 
 <p align="center">
-  An Open-Source AI Community Management Assistant Built With Next.js 15, React 19, and the AI SDK by Vercel.
+  <strong>AI-Powered Community Management Assistant</strong>
+</p>
+
+<p align="center">
+  Stop juggling calendars, spreadsheets, and multiple tools. CommunitySync automates community management so you can focus on building meaningful connections.
 </p>
 
 <p align="center">
   <a href="#features"><strong>Features</strong></a> ·
-  <a href="#model-providers"><strong>Model Providers</strong></a> ·
-  <a href="#deploy-your-own"><strong>Deploy Your Own</strong></a> ·
-  <a href="#running-locally"><strong>Running locally</strong></a>
+  <a href="#getting-started"><strong>Getting Started</strong></a> ·
+  <a href="#configuration"><strong>Configuration</strong></a> ·
+  <a href="#tech-stack"><strong>Tech Stack</strong></a>
 </p>
-<br/>
+
+---
 
 ## Features
 
-- [Next.js](https://nextjs.org) 15 App Router
-  - Advanced routing for seamless navigation and performance
-  - React Server Components (RSCs) and Server Actions for server-side rendering and increased performance
-  - Turbo mode for faster development
-- [React](https://react.dev) 19
-  - Latest React features and performance improvements
-- [AI SDK](https://sdk.vercel.ai/docs)
-  - Unified API for generating text, structured objects, and tool calls with LLMs
-  - Hooks for building dynamic chat and generative user interfaces
-  - Supports Google (default), OpenAI, Anthropic, Cohere, and other model providers
-  - AI SDK Tools: Agents, Artifacts, Memory, and Store for advanced AI capabilities
-- [shadcn/ui](https://ui.shadcn.com)
-  - Styling with [Tailwind CSS](https://tailwindcss.com)
-  - Component primitives from [Radix UI](https://radix-ui.com) for accessibility and flexibility
-- Data Persistence
-  - [Vercel Postgres powered by Neon](https://vercel.com/storage/postgres) for saving chat history and user data
-  - [Vercel Blob](https://vercel.com/storage/blob) for efficient object storage
-  - [Drizzle ORM](https://orm.drizzle.team) for type-safe database queries
-- [NextAuth.js](https://github.com/nextauthjs/next-auth)
-  - Simple and secure authentication
-- Google Calendar Integration
-  - Connect and manage calendar events directly from the chat
-  - Schedule community events and meetings
-  - View and manage calendar events through the chat interface
-- Multimodal Input
-  - Support for file uploads and attachments
-  - Rich message formatting with markdown support
+### 🤖 Intelligent Automation
+- **Event Management**: Schedule, modify, and track community events with natural language
+- **Calendar Integration**: Full Google Calendar sync—view, create, and manage events directly from chat
+- **Content Planning**: AI-powered content calendar suggestions and optimal posting times
+- **Engagement Tracking**: Monitor community metrics and get actionable insights
+- **Member Support**: Facilitate onboarding and answer questions automatically
+- **Team Coordination**: Coordinate between team members and stakeholders seamlessly
 
-## Model Providers
+### 💬 Natural Conversation
+- Chat naturally—no complex forms or menus
+- Context-aware responses that remember your community's needs
+- Proactive suggestions based on best practices
+- Multimodal input: upload files, share attachments, format with markdown
 
-This template ships with Google Gemini `gemini-1.5-pro` models as the default. However, with the [AI SDK](https://sdk.vercel.ai/docs), you can switch LLM providers to [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Cohere](https://cohere.com/), and [many more](https://sdk.vercel.ai/providers/ai-sdk-providers) with just a few lines of code.
+### ⚡ Built for Performance
+- Next.js 15 with React Server Components and Turbo mode
+- Lightning-fast responses with streaming AI
+- Modern, accessible UI with shadcn/ui
+- Type-safe codebase with TypeScript
 
-## Deploy Your Own
+---
 
-You can deploy your own version of the Next.js AI Chatbot to Vercel with one click:
+## Getting Started
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-labs%2Fgemini-chatbot&env=AUTH_SECRET,GOOGLE_GENERATIVE_AI_API_KEY&envDescription=Learn%20more%20about%20how%20to%20get%20the%20API%20Keys%20for%20the%20application&envLink=https%3A%2F%2Fgithub.com%2Fvercel-labs%2Fgemini-chatbot%2Fblob%2Fmain%2F.env.example&demo-title=Next.js%20Gemini%20Chatbot&demo-description=An%20Open-Source%20AI%20Chatbot%20Template%20Built%20With%20Next.js%20and%20the%20AI%20SDK%20by%20Vercel.&demo-url=https%3A%2F%2Fgemini.vercel.ai&stores=[{%22type%22:%22postgres%22},{%22type%22:%22blob%22}])
+### Prerequisites
 
-## Running locally
+- Node.js 18+ and pnpm installed
+- A PostgreSQL database (Vercel Postgres recommended)
+- Google Cloud project with Calendar API enabled
+- Google Generative AI API key
 
-You will need to use the environment variables [defined in `.env.example`](.env.example) to run Next.js AI Chatbot. It's recommended you use [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables) for this, but a `.env` file is all that is necessary.
+### Installation
 
-> Note: You should not commit your `.env` file or it will expose secrets that will allow others to control access to your various Google Cloud and authentication provider accounts.
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd agents_aisdk
+   ```
 
-1. Install Vercel CLI: `pnpm add -g vercel` (or `npm i -g vercel`)
-2. Link local instance with Vercel and GitHub accounts (creates `.vercel` directory): `vercel link`
-3. Download your environment variables: `vercel env pull`
+2. **Install dependencies**
+   ```bash
+   pnpm install
+   ```
 
-```bash
-pnpm install
-pnpm dev
+3. **Set up environment variables**
+   
+   Create a `.env.local` file in the root directory with the following variables:
+   
+   ```env
+   # Database
+   POSTGRES_URL=your_postgres_connection_string
+   
+   # Authentication
+   AUTH_SECRET=your_auth_secret_generate_with_openssl_rand_base64_32
+   
+   # Google OAuth (for Calendar integration)
+   GOOGLE_CLIENT_ID=your_google_client_id
+   GOOGLE_CLIENT_SECRET=your_google_client_secret
+   GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/callback/google
+   
+   # Google Generative AI
+   GOOGLE_GENERATIVE_AI_API_KEY=your_google_ai_api_key
+   
+   # Vercel Blob (optional, for file uploads)
+   BLOB_READ_WRITE_TOKEN=your_blob_token
+   ```
+
+   **How to get these values:**
+   
+   - **AUTH_SECRET**: Generate with `openssl rand -base64 32`
+   - **POSTGRES_URL**: Get from your Vercel Postgres dashboard or any PostgreSQL provider
+   - **GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET**: 
+     1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+     2. Create a new project or select existing
+     3. Enable Google Calendar API
+     4. Create OAuth 2.0 credentials
+     5. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
+   - **GOOGLE_GENERATIVE_AI_API_KEY**: Get from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - **BLOB_READ_WRITE_TOKEN**: Get from Vercel dashboard (Storage → Blob)
+
+4. **Run database migrations**
+   ```bash
+   pnpm run build
+   ```
+   This will automatically run migrations before building. Alternatively:
+   ```bash
+   tsx db/migrate
+   ```
+
+5. **Start the development server**
+   ```bash
+   pnpm dev
+   ```
+
+6. **Open your browser**
+   
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+   You'll be prompted to:
+   - Register/Login (create an account or use Google OAuth)
+   - Connect your Google Calendar (click the integration button in the UI)
+
+---
+
+## Configuration
+
+### Google Calendar Setup
+
+1. **Enable Google Calendar API**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Navigate to APIs & Services → Library
+   - Search for "Google Calendar API" and enable it
+
+2. **Create OAuth 2.0 Credentials**
+   - Go to APIs & Services → Credentials
+   - Click "Create Credentials" → "OAuth client ID"
+   - Choose "Web application"
+   - Add authorized redirect URIs:
+     - `http://localhost:3000/api/auth/callback/google` (for local development)
+     - `https://yourdomain.com/api/auth/callback/google` (for production)
+
+3. **Configure Scopes**
+   - The app requests: `openid email profile https://www.googleapis.com/auth/calendar`
+   - Make sure these scopes are enabled in your OAuth consent screen
+
+### Database Setup
+
+**Option 1: Vercel Postgres (Recommended)**
+1. Go to your Vercel project dashboard
+2. Navigate to Storage → Create Database → Postgres
+3. Copy the `POSTGRES_URL` connection string to your `.env.local`
+
+**Option 2: Other PostgreSQL Providers**
+- Use any PostgreSQL database (Neon, Supabase, Railway, etc.)
+- Copy the connection string to `POSTGRES_URL` in `.env.local`
+
+### Model Providers
+
+CommunitySync uses **Google Gemini 2.5 Pro** by default. You can switch to other providers by modifying `ai/index.ts`:
+
+```typescript
+// For OpenAI
+import { openai } from '@ai-sdk/openai';
+export const model = openai('gpt-4');
+
+// For Anthropic
+import { anthropic } from '@ai-sdk/anthropic';
+export const model = anthropic('claude-3-opus-20240229');
 ```
 
-Your app template should now be running on [localhost:3000](http://localhost:3000/).
+---
+
+## Tech Stack
+
+- **Framework**: [Next.js](https://nextjs.org) 15 with App Router
+- **UI**: [React](https://react.dev) 19, [shadcn/ui](https://ui.shadcn.com), [Tailwind CSS](https://tailwindcss.com)
+- **AI**: [Vercel AI SDK](https://sdk.vercel.ai/docs), Google Gemini
+- **Database**: [Vercel Postgres](https://vercel.com/storage/postgres) (Neon), [Drizzle ORM](https://orm.drizzle.team)
+- **Storage**: [Vercel Blob](https://vercel.com/storage/blob)
+- **Authentication**: [NextAuth.js](https://github.com/nextauthjs/next-auth)
+- **Calendar**: Google Calendar API
+
+---
+
+## Project Structure
+
+```
+├── app/
+│   ├── (auth)/          # Authentication pages (login, register)
+│   ├── (chat)/          # Chat interface and API routes
+│   └── layout.tsx       # Root layout
+├── components/
+│   ├── custom/          # Custom components (chat, calendar, etc.)
+│   └── ui/              # shadcn/ui components
+├── db/
+│   ├── schema.ts        # Database schema
+│   ├── queries.ts       # Database queries
+│   └── migrate.ts       # Migration runner
+├── lib/
+│   └── tools/           # AI tools (Google Calendar integration)
+└── ai/
+    └── index.ts         # AI model configuration
+```
+
+---
+
+## Usage
+
+### Basic Chat
+
+Once logged in, simply start chatting with the AI assistant:
+
+- "Show me my upcoming events"
+- "Schedule a community meetup next Friday at 6 PM"
+- "What's on my calendar this week?"
+- "Create an event for the team standup tomorrow at 10 AM"
+
+### Calendar Integration
+
+1. **Connect Google Calendar**: Click the integration button in the UI and authorize access
+2. **View Events**: Ask the assistant to show your calendar
+3. **Create Events**: Describe the event naturally, and the AI will create it
+4. **Manage Events**: Update, delete, or check availability through conversation
+
+### File Uploads
+
+- Attach files to your messages
+- The AI can process and reference uploaded documents
+- Files are stored securely in Vercel Blob
+
+---
+
+## Development
+
+### Available Scripts
+
+- `pnpm dev` - Start development server with Turbo mode
+- `pnpm build` - Build for production (runs migrations automatically)
+- `pnpm start` - Start production server
+- `pnpm lint` - Run ESLint
+
+### Database Migrations
+
+Migrations are automatically run during `pnpm build`. To run manually:
+
+```bash
+tsx db/migrate
+```
+
+### Environment Variables
+
+All environment variables should be set in `.env.local` for local development. Never commit this file to version control.
+
+---
+
+## Troubleshooting
+
+### "Failed to get Google refresh token"
+- Make sure you've connected your Google account via the integration button
+- Verify `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are correct
+- Check that Google Calendar API is enabled in your Google Cloud project
+
+### "Failed to save chat"
+- Verify `POSTGRES_URL` is set correctly
+- Ensure database migrations have been run
+- Check database connection and permissions
+
+### Calendar not working
+- Verify Google Calendar API is enabled
+- Check OAuth scopes include calendar access
+- Ensure redirect URI matches exactly in Google Cloud Console
+
+---
+
+## License
+
+[Add your license here]
+
+---
+
+## Contributing
+
+[Add contribution guidelines here]
+
+---
+
+**Built with ❤️ using Next.js, React, and the Vercel AI SDK.**
