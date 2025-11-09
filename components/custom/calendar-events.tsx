@@ -14,6 +14,7 @@ export type CalendarEvent = {
   end?: string | null;
   location?: string | null;
   status?: string | null;
+  htmlLink?: string | null;
   attendees?: Array<{
     email?: string | null;
     displayName?: string | null;
