@@ -1,0 +1,1 @@
+DROP TABLE "Reservation" CASCADE;

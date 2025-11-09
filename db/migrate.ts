@@ -32,10 +32,16 @@ const runMigrate = async () => {
     process.exit(0);
   }
 
-  const connection = postgres(postgresUrl, { max: 1 });
+  // Add connection timeout and retry options
+  const connection = postgres(`${postgresUrl}?sslmode=require`, {
+    max: 1,
+    connect_timeout: 30,
+    idle_timeout: 20,
+  });
   const db = drizzle(connection);
 
   console.log("⏳ Running migrations...");
+  console.log(`Connecting to database: ${postgresUrl.split('@')[1] || '***'}...`);
 
   const start = Date.now();
   await migrate(db, { migrationsFolder: "./lib/drizzle" });

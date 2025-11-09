@@ -22,6 +22,13 @@
       "when": 1762233600000,
       "tag": "0002_add_calendar_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1762696091721,
+      "tag": "0003_natural_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }
