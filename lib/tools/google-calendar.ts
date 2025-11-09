@@ -36,7 +36,7 @@ function normalizeEventDateTime(
 async function getCalendarClient() {
   const session = await auth();
   
-  if (!session?.user) {
+  if (!session?.user?.id) {
     throw new Error("User not authenticated");
   }
 
@@ -70,15 +70,71 @@ async function getCalendarClient() {
   return google.calendar({ version: "v3", auth: oauth2Client });
 }
 
+const listEventsSchema = z.object({
+  maxResults: z.number().optional().default(10).describe("Maximum number of events to return (default: 10)"),
+  timeMin: z.string().optional().describe("Lower bound (exclusive) for an event's start time in RFC3339 format. If not provided, defaults to current time."),
+  calendarId: z.string().optional().default("primary").describe("Calendar ID - use 'primary' for the user's main calendar (this is the default and should be used unless user specifies otherwise)"),
+});
+
+const createEventSchema = z.object({
+  summary: z.string().describe("Event title/summary"),
+  description: z.string().optional().describe("Event description"),
+  start: z.object({
+    dateTime: z.string().optional().describe("Start time in RFC3339 format (e.g., 2024-12-25T10:00:00-08:00)"),
+    date: z.string().optional().describe("Start date in YYYY-MM-DD format for all-day events"),
+    timeZone: z.string().optional().describe("Time zone (e.g., America/Los_Angeles)"),
+  }),
+  end: z.object({
+    dateTime: z.string().optional().describe("End time in RFC3339 format"),
+    date: z.string().optional().describe("End date in YYYY-MM-DD format for all-day events"),
+    timeZone: z.string().optional().describe("Time zone"),
+  }),
+  location: z.string().optional().describe("Event location"),
+  attendees: z.array(z.object({
+    email: z.string().email(),
+    displayName: z.string().optional(),
+  })).optional().describe("List of attendees"),
+  calendarId: z.string().optional().default("primary").describe("Calendar ID to create event in"),
+});
+
+const updateEventSchema = z.object({
+  eventId: z.string().describe("ID of the event to update"),
+  summary: z.string().optional().describe("New event title/summary"),
+  description: z.string().optional().describe("New event description"),
+  start: z.object({
+    dateTime: z.string().optional(),
+    date: z.string().optional(),
+    timeZone: z.string().optional(),
+  }).optional(),
+  end: z.object({
+    dateTime: z.string().optional(),
+    date: z.string().optional(),
+    timeZone: z.string().optional(),
+  }).optional(),
+  location: z.string().optional().describe("New event location"),
+  attendees: z.array(z.object({
+    email: z.string().email(),
+    displayName: z.string().optional(),
+  })).optional(),
+  calendarId: z.string().optional().default("primary"),
+});
+
+const deleteEventSchema = z.object({
+  eventId: z.string().describe("ID of the event to delete"),
+  calendarId: z.string().optional().default("primary"),
+});
+
+const checkAvailabilitySchema = z.object({
+  timeMin: z.string().describe("Start time in RFC3339 format"),
+  timeMax: z.string().describe("End time in RFC3339 format"),
+  calendarId: z.string().optional().default("primary"),
+});
+
 export const googleCalendarTools = {
   listEvents: {
     description: "List upcoming events from the user's Google Calendar. Use this tool immediately when users ask about their calendar, events, or schedule. Defaults to 'primary' calendar - use this unless user specifies a different calendar.",
-    inputSchema: z.object({
-      maxResults: z.number().optional().default(10).describe("Maximum number of events to return (default: 10)"),
-      timeMin: z.string().optional().describe("Lower bound (exclusive) for an event's start time in RFC3339 format. If not provided, defaults to current time."),
-      calendarId: z.string().optional().default("primary").describe("Calendar ID - use 'primary' for the user's main calendar (this is the default and should be used unless user specifies otherwise)"),
-    }),
-    execute: async ({ maxResults = 10, timeMin, calendarId = "primary" }) => {
+    inputSchema: listEventsSchema,
+    execute: async ({ maxResults = 10, timeMin, calendarId = "primary" }: z.infer<typeof listEventsSchema>) => {
       try {
         const calendar = await getCalendarClient();
         const response = await calendar.events.list({
@@ -117,27 +173,8 @@ export const googleCalendarTools = {
 
   createEvent: {
     description: "Create a new event in Google Calendar",
-    inputSchema: z.object({
-      summary: z.string().describe("Event title/summary"),
-      description: z.string().optional().describe("Event description"),
-      start: z.object({
-        dateTime: z.string().optional().describe("Start time in RFC3339 format (e.g., 2024-12-25T10:00:00-08:00)"),
-        date: z.string().optional().describe("Start date in YYYY-MM-DD format for all-day events"),
-        timeZone: z.string().optional().describe("Time zone (e.g., America/Los_Angeles)"),
-      }),
-      end: z.object({
-        dateTime: z.string().optional().describe("End time in RFC3339 format"),
-        date: z.string().optional().describe("End date in YYYY-MM-DD format for all-day events"),
-        timeZone: z.string().optional().describe("Time zone"),
-      }),
-      location: z.string().optional().describe("Event location"),
-      attendees: z.array(z.object({
-        email: z.string().email(),
-        displayName: z.string().optional(),
-      })).optional().describe("List of attendees"),
-      calendarId: z.string().optional().default("primary").describe("Calendar ID to create event in"),
-    }),
-    execute: async (eventData) => {
+    inputSchema: createEventSchema,
+    execute: async (eventData: z.infer<typeof createEventSchema>) => {
       try {
         const calendar = await getCalendarClient();
         const response = await calendar.events.insert({
@@ -179,28 +216,8 @@ export const googleCalendarTools = {
 
   updateEvent: {
     description: "Update an existing event in Google Calendar",
-    inputSchema: z.object({
-      eventId: z.string().describe("ID of the event to update"),
-      summary: z.string().optional().describe("New event title/summary"),
-      description: z.string().optional().describe("New event description"),
-      start: z.object({
-        dateTime: z.string().optional(),
-        date: z.string().optional(),
-        timeZone: z.string().optional(),
-      }).optional(),
-      end: z.object({
-        dateTime: z.string().optional(),
-        date: z.string().optional(),
-        timeZone: z.string().optional(),
-      }).optional(),
-      location: z.string().optional().describe("New event location"),
-      attendees: z.array(z.object({
-        email: z.string().email(),
-        displayName: z.string().optional(),
-      })).optional(),
-      calendarId: z.string().optional().default("primary"),
-    }),
-    execute: async ({ eventId, calendarId = "primary", ...updates }) => {
+    inputSchema: updateEventSchema,
+    execute: async ({ eventId, calendarId = "primary", ...updates }: z.infer<typeof updateEventSchema>) => {
       try {
         const calendar = await getCalendarClient();
         
@@ -247,11 +264,8 @@ export const googleCalendarTools = {
 
   deleteEvent: {
     description: "Delete an event from Google Calendar",
-    inputSchema: z.object({
-      eventId: z.string().describe("ID of the event to delete"),
-      calendarId: z.string().optional().default("primary"),
-    }),
-    execute: async ({ eventId, calendarId = "primary" }) => {
+    inputSchema: deleteEventSchema,
+    execute: async ({ eventId, calendarId = "primary" }: z.infer<typeof deleteEventSchema>) => {
       try {
         const calendar = await getCalendarClient();
         await calendar.events.delete({
@@ -273,12 +287,8 @@ export const googleCalendarTools = {
 
   checkAvailability: {
     description: "Check calendar availability for a given time range",
-    inputSchema: z.object({
-      timeMin: z.string().describe("Start time in RFC3339 format"),
-      timeMax: z.string().describe("End time in RFC3339 format"),
-      calendarId: z.string().optional().default("primary"),
-    }),
-    execute: async ({ timeMin, timeMax, calendarId = "primary" }) => {
+    inputSchema: checkAvailabilitySchema,
+    execute: async ({ timeMin, timeMax, calendarId = "primary" }: z.infer<typeof checkAvailabilitySchema>) => {
       try {
         const calendar = await getCalendarClient();
         const response = await calendar.events.list({
