@@ -23,11 +23,17 @@ export const authConfig = {
       }
       return baseUrl;
     },
-    authorized({ auth, request: { nextUrl } }) {
+    async authorized({ auth, request: { nextUrl } }) {
       let isLoggedIn = !!auth?.user;
       let isOnChat = nextUrl.pathname.startsWith("/");
       let isOnRegister = nextUrl.pathname.startsWith("/register");
       let isOnLogin = nextUrl.pathname.startsWith("/login");
+      let isOnError = nextUrl.pathname.startsWith("/api/auth/error");
+
+      // Always allow access to error pages
+      if (isOnError) {
+        return true;
+      }
 
       if (isLoggedIn && (isOnLogin || isOnRegister)) {
         return Response.redirect(new URL("/", nextUrl));

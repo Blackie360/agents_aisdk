@@ -33,10 +33,13 @@ const runMigrate = async () => {
   }
 
   // Add connection timeout and retry options
+  // Force IPv4 by using the IP address or configuring family preference
   const connection = postgres(`${postgresUrl}?sslmode=require`, {
     max: 1,
     connect_timeout: 30,
     idle_timeout: 20,
+    // Prefer IPv4 to avoid IPv6 connectivity issues
+    family: 4,
   });
   const db = drizzle(connection);
 

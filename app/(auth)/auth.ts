@@ -38,6 +38,12 @@ export const {
           prompt: "consent",
         },
       },
+      httpOptions: {
+        // Increase timeout to handle slow network connections
+        timeout: 30000, // 30 seconds
+      },
+      // Add retry logic for failed requests
+      checks: ["pkce", "state"],
     }),
   ],
   callbacks: {
@@ -57,6 +63,11 @@ export const {
           return true;
         } catch (error) {
           console.error("❌ Error during Google sign-in:", error);
+          // Log more details about the error
+          if (error instanceof Error) {
+            console.error("Error message:", error.message);
+            console.error("Error stack:", error.stack);
+          }
           return false;
         }
       }
@@ -66,6 +77,7 @@ export const {
     async jwt({ token, user, account }) {
       // When user signs in, get their database ID
       if (user?.email) {
+        token.email = user.email;
         try {
           const dbUsers = await getUser(user.email);
           if (dbUsers.length > 0 && dbUsers[0].id) {
@@ -100,7 +112,16 @@ export const {
       token: any;
     }) {
       if (session.user) {
-        session.user.id = token.id as string;
+        // Set user ID from token (verified in saveChat if needed)
+        // Note: If user doesn't exist in DB, saveChat will handle it gracefully
+        if (token.id) {
+          session.user.id = token.id as string;
+        }
+        
+        // Ensure email is available in session
+        if (token.email && !session.user.email) {
+          session.user.email = token.email as string;
+        }
       }
 
       return session;

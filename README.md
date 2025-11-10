@@ -82,6 +82,10 @@
    # Google Generative AI
    GOOGLE_GENERATIVE_AI_API_KEY=your_google_ai_api_key
    
+   # Vercel AI Gateway (optional but recommended for rate limiting)
+   # Get your API key from: https://vercel.com/docs/ai-gateway
+   AI_GATEWAY_API_KEY=your_ai_gateway_api_key
+   
    # Vercel Blob (optional, for file uploads)
    BLOB_READ_WRITE_TOKEN=your_blob_token
    ```
@@ -97,6 +101,7 @@
      4. Create OAuth 2.0 credentials
      5. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
    - **GOOGLE_GENERATIVE_AI_API_KEY**: Get from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - **AI_GATEWAY_API_KEY**: Get from [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) (optional but recommended to handle rate limiting)
    - **BLOB_READ_WRITE_TOKEN**: Get from Vercel dashboard (Storage → Blob)
 
 4. **Run database migrations**
@@ -157,17 +162,33 @@
 
 ### Model Providers
 
-CommunitySync uses **Google Gemini 2.5 Pro** by default. You can switch to other providers by modifying `ai/index.ts`:
+CommunitySync uses **Google Gemini 2.5 Pro** via **Vercel AI Gateway** by default. The AI Gateway provides:
+
+- **Automatic rate limiting handling**: Prevents rate limit errors from Google Generative API
+- **Retry logic**: Automatically retries failed requests with exponential backoff
+- **Better reliability**: Improved uptime and error handling
+- **Usage tracking**: Monitor API usage per user and feature
+- **Cost optimization**: Better request management and caching
+
+You can switch to other providers by modifying `ai/index.ts`:
 
 ```typescript
-// For OpenAI
-import { openai } from '@ai-sdk/openai';
-export const model = openai('gpt-4');
+// Using Vercel AI Gateway (recommended - handles rate limiting)
+import { gateway } from 'ai';
+export const model = gateway('google/gemini-2.5-pro');
 
-// For Anthropic
-import { anthropic } from '@ai-sdk/anthropic';
-export const model = anthropic('claude-3-opus-20240229');
+// Direct Google provider (without gateway)
+import { google } from '@ai-sdk/google';
+export const model = google('gemini-2.5-pro');
+
+// For OpenAI via Gateway
+export const model = gateway('openai/gpt-4');
+
+// For Anthropic via Gateway
+export const model = gateway('anthropic/claude-3-opus-20240229');
 ```
+
+**Note**: To use Vercel AI Gateway, set the `AI_GATEWAY_API_KEY` environment variable. If not set, the gateway will still work but with limited features.
 
 ---
 
@@ -175,7 +196,7 @@ export const model = anthropic('claude-3-opus-20240229');
 
 - **Framework**: [Next.js](https://nextjs.org) 15 with App Router
 - **UI**: [React](https://react.dev) 19, [shadcn/ui](https://ui.shadcn.com), [Tailwind CSS](https://tailwindcss.com)
-- **AI**: [Vercel AI SDK](https://sdk.vercel.ai/docs), Google Gemini
+- **AI**: [Vercel AI SDK](https://sdk.vercel.ai/docs), [Vercel AI Gateway](https://vercel.com/docs/ai-gateway), Google Gemini
 - **Database**: [Vercel Postgres](https://vercel.com/storage/postgres) (Neon), [Drizzle ORM](https://orm.drizzle.team)
 - **Storage**: [Vercel Blob](https://vercel.com/storage/blob)
 - **Authentication**: [NextAuth.js](https://github.com/nextauthjs/next-auth)

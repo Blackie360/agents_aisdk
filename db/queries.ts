@@ -27,7 +27,10 @@ function getDb() {
       );
     }
 
-    client = postgres(`${postgresUrl}?sslmode=require`);
+    client = postgres(`${postgresUrl}?sslmode=require`, {
+      // Prefer IPv4 to avoid IPv6 connectivity issues
+      family: 4,
+    });
     dbInstance = drizzle(client);
   }
   return dbInstance;
@@ -72,6 +75,21 @@ export async function saveChat({
 }) {
   try {
     const db = getDb();
+    
+    // Verify user exists before saving chat
+    const [existingUser] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    
+    if (!existingUser) {
+      console.error(
+        `Cannot save chat: User with ID ${userId} does not exist in database`
+      );
+      return null;
+    }
+    
     const selectedChats = await db.select().from(chat).where(eq(chat.id, id));
 
     if (selectedChats.length > 0) {
