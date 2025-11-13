@@ -8,8 +8,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://gemini.vercel.ai"),
-  title: "Next.js Gemini Chatbot",
-  description: "Next.js chatbot template using the AI SDK and Gemini.",
+  title: "Tech Community Manager AI",
+  description: "AI-powered assistant for DevRel professionals and community managers. Get help with community strategy, event planning, content creation, and more.",
 };
 
 export default async function RootLayout({

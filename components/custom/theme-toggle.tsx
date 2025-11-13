@@ -17,12 +17,13 @@ export function ThemeToggle() {
 
   return (
     <div
-      className="cursor-pointer"
+      className="cursor-pointer text-foreground hover:text-primary transition-colors flex items-center gap-2"
       onClick={() => {
         setTheme(theme === "dark" ? "light" : "dark");
       }}
     >
-      {`Toggle ${theme === "light" ? "dark" : "light"} mode`}
+      <span className="text-lg">{theme === "light" ? "☾" : "☼"}</span>
+      <span>{`${theme === "light" ? "Dark" : "Light"} mode`}</span>
     </div>
   );
 }

@@ -14,21 +14,21 @@ import { Button } from "../ui/button";
 export const Navbar = async () => {
   return (
     <>
-      <div className="bg-background absolute top-0 left-0 w-dvw py-2 px-3 justify-between flex flex-row items-center z-30">
-        <div className="flex flex-row gap-3 items-center">
+      <div className="bg-background absolute top-0 left-0 w-dvw py-3 px-3 sm:px-4 md:px-6 justify-between flex flex-row items-center z-30 border-b shadow-sm">
+        <div className="flex flex-row gap-2 sm:gap-3 items-center">
           <History />
-          <div className="flex flex-row gap-2 items-center">
+          <div className="flex flex-row gap-1.5 sm:gap-2 items-center">
             <Image
               src="/images/gemini-logo.png"
               height={20}
               width={20}
               alt="gemini logo"
             />
-            <div className="text-zinc-500">
+            <div className="text-muted-foreground hidden sm:block">
               <SlashIcon size={16} />
             </div>
-            <div className="text-sm dark:text-zinc-300 truncate w-28 md:w-fit">
-              Next.js Gemini Chatbot
+            <div className="text-sm sm:text-base font-semibold truncate w-32 sm:w-48 md:w-fit tracking-wide">
+              Gemini Chatbot
             </div>
           </div>
         </div>
@@ -36,7 +36,7 @@ export const Navbar = async () => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              className="py-1.5 px-2 h-fit font-normal"
+              className="py-1.5 px-3 h-fit font-semibold"
               variant="secondary"
             >
               Menu

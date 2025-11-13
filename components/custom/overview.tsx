@@ -1,64 +1,82 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Users, Calendar, TrendingUp, MessageSquare, Megaphone, Globe } from "lucide-react";
 
 import { LogoGoogle, MessageIcon, VercelIcon } from "./icons";
+
+const capabilities = [
+  { icon: Users, label: "Community Growth", desc: "Strategies & programs" },
+  { icon: Calendar, label: "Event Planning", desc: "Meetups & hackathons" },
+  { icon: TrendingUp, label: "Metrics & Analytics", desc: "Track engagement" },
+  { icon: MessageSquare, label: "Content Creation", desc: "Social & technical" },
+  { icon: Megaphone, label: "DevRel Campaigns", desc: "Advocacy programs" },
+  { icon: Globe, label: "Web Research", desc: "Latest trends & news" },
+];
 
 export const Overview = () => {
   return (
     <motion.div
       key="overview"
-      className="max-w-[500px] mx-auto"
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ delay: 0.5 }}
+      className="max-w-full sm:max-w-[500px] mx-auto"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.5 }}
     >
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex flex-row justify-center gap-4 items-center">
-            <VercelIcon />
-            <span>+</span>
-            <MessageIcon />
+      <Card className="relative">
+        <CardHeader className="space-y-3 pb-3">
+          <CardTitle className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <VercelIcon />
+              <span className="text-lg sm:text-xl">+</span>
+              <MessageIcon />
+            </div>
           </CardTitle>
-          <CardDescription>
-            Advanced AI agent powered by Google Gemini 2.5 models
+          <CardDescription className="text-center text-sm sm:text-base">
+            Your AI-powered Tech Community Manager & DevRel Assistant
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Built with Next.js and the AI SDK by Vercel. It supports multiple capabilities:
+
+        <CardContent className="space-y-4 pt-2">
+          <div className="h-px bg-border opacity-50" />
+          
+          <p className="text-sm text-muted-foreground text-center">
+            Specialized in DevRel, community building, and tech event planning
           </p>
-          <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-            <li>
-              <strong className="text-foreground">Image Generation:</strong> Create images using Google Imagen 3.0
-            </li>
-            <li>
-              <strong className="text-foreground">Web Search:</strong> Get real-time information with Google Search grounding
-            </li>
-            <li>
-              <strong className="text-foreground">URL Analysis:</strong> Analyze and summarize web content from URLs
-            </li>
-            <li>
-              <strong className="text-foreground">Code Execution:</strong> Run Python code for calculations and problem-solving
-            </li>
-            <li>
-              <strong className="text-foreground">File Processing:</strong> Understand PDFs, images, and YouTube videos
-            </li>
-            <li>
-              <strong className="text-foreground">Advanced Reasoning:</strong> Complex thinking with Gemini 2.5 Flash
-            </li>
-          </ul>
-          <p className="text-sm text-muted-foreground">
-            Learn more about the AI SDK by visiting the{" "}
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {capabilities.map((cap, index) => (
+              <motion.div
+                key={cap.label}
+                initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                transition={{ delay: 0.1 * index, duration: 0.3 }}
+              >
+                <Badge
+                  variant="secondary"
+                  className="w-full h-auto flex flex-col items-center gap-1.5 p-2 sm:p-3 transition-all cursor-default"
+                >
+                  <cap.icon className="size-4 sm:size-5" />
+                  <span className="text-xs font-semibold text-center leading-tight">{cap.label}</span>
+                  <span className="text-[10px] opacity-70 text-center">{cap.desc}</span>
+                </Badge>
+              </motion.div>
+            ))}
+          </div>
+
+          <div className="h-px bg-border opacity-50" />
+
+          <p className="text-xs sm:text-sm text-muted-foreground text-center">
+            Learn more at{" "}
             <Link
-              className="text-primary hover:underline"
+              className="text-primary hover:underline underline-offset-2 font-semibold"
               href="https://sdk.vercel.ai/docs"
               target="_blank"
             >
-              Docs
+              AI SDK Docs
             </Link>
-            .
           </p>
         </CardContent>
       </Card>

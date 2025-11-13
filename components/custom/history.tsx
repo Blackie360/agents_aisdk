@@ -40,7 +40,7 @@ export const History = () => {
           setIsHistoryVisible(state);
         }}
       >
-        <SheetContent side="left" className="p-3 w-80 bg-muted">
+        <SheetContent side="left" className="p-4 w-80">
           <SheetHeader>
             <VisuallyHidden.Root>
               <SheetTitle className="text-left">History</SheetTitle>
@@ -50,16 +50,16 @@ export const History = () => {
             </VisuallyHidden.Root>
           </SheetHeader>
 
-          <div className="text-sm flex flex-row items-center justify-between">
+          <div className="text-sm flex flex-row items-center justify-between border-b pb-3 mb-4">
             <div className="flex flex-row gap-2">
-              <div className="dark:text-zinc-300">History</div>
-              <div className="dark:text-zinc-400 text-zinc-500">0 chats</div>
+              <div className="font-semibold">History</div>
+              <div className="text-muted-foreground">0 chats</div>
             </div>
           </div>
 
-          <div className="mt-10 flex flex-col">
+          <div className="flex flex-col">
             <Button
-              className="font-normal text-sm flex flex-row justify-between text-white"
+              className="font-semibold text-sm flex flex-row justify-between mb-4"
               asChild
             >
               <Link href="/">
@@ -68,10 +68,10 @@ export const History = () => {
               </Link>
             </Button>
 
-            <div className="flex flex-col overflow-y-scroll p-1 h-[calc(100dvh-124px)]">
-              <div className="text-zinc-500 h-dvh w-full flex flex-row justify-center items-center text-sm gap-2">
+            <div className="flex flex-col overflow-y-scroll p-1 h-[calc(100dvh-180px)]">
+              <div className="text-muted-foreground h-dvh w-full flex flex-col justify-center items-center text-sm gap-3">
                 <InfoIcon />
-                <div>No chat history available</div>
+                <div className="text-center">No chat history available</div>
               </div>
             </div>
           </div>

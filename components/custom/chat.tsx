@@ -23,6 +23,27 @@ import {
 import { PreviewAttachment } from "./preview-attachment";
 import { Overview } from "./overview";
 
+function extractImageUrls(text: string): string[] {
+  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s<>"{}|\\^`\[\]]*)?/gi;
+  const blobRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]*(?:blob\.vercel-storage\.com|vercelusercontent\.com)[^\s<>"{}|\\^`\[\]]*/gi;
+  
+  const imageMatches = text.match(urlRegex) || [];
+  const blobMatches = text.match(blobRegex) || [];
+  
+  return [...imageMatches, ...blobMatches];
+}
+
+function removeImageUrls(text: string): string {
+  let cleanText = text;
+  const imageUrls = extractImageUrls(text);
+  
+  imageUrls.forEach(url => {
+    cleanText = cleanText.replace(url, '');
+  });
+  
+  return cleanText.replace(/\s+/g, ' ').trim();
+}
+
 export function Chat({
   id,
   initialMessages,
@@ -58,11 +79,11 @@ export function Chat({
 
   return (
     <div className="flex flex-col h-dvh bg-background">
-      <Conversation className="flex-1">
-        <ConversationContent>
+      <Conversation className="flex-1 relative">
+        <ConversationContent className="p-2 sm:p-4 md:p-6">
           {messages.length === 0 ? (
             <ConversationEmptyState
-              icon={<MessageSquare className="size-12 text-muted-foreground" />}
+              icon={<MessageSquare className="size-10 sm:size-12 text-primary" />}
               title="Start a conversation"
               description="Ask me anything or try one of the suggestions below"
             />
@@ -83,10 +104,45 @@ export function Chat({
                   contentType: (part as any).contentType || "",
                 }));
 
+                const imageUrls = extractImageUrls(content);
+                const textWithoutImages = removeImageUrls(content);
+
                 return (
                   <Message key={message.id} from={message.role as "user" | "assistant"}>
                     <MessageContent>
-                      {content && <Response>{content}</Response>}
+                      {textWithoutImages && <Response>{textWithoutImages}</Response>}
+                      {imageUrls.length > 0 && (
+                        <div className="flex flex-col gap-3 mt-3">
+                          {imageUrls.map((imageUrl, idx) => (
+                            <div 
+                              key={idx}
+                              className="relative rounded-lg border overflow-hidden bg-card p-2 sm:p-3 shadow-sm"
+                            >
+                              <img
+                                src={imageUrl}
+                                alt="Generated image"
+                                className="w-full h-auto rounded"
+                                loading="lazy"
+                                onError={(e) => {
+                                  console.error('Image failed to load:', imageUrl);
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    const errorDiv = document.createElement('div');
+                                    errorDiv.className = 'text-sm text-muted-foreground p-4 text-center';
+                                    errorDiv.innerHTML = `<p>Image failed to load</p><a href="${imageUrl}" target="_blank" class="text-xs underline break-all">${imageUrl}</a>`;
+                                    parent.appendChild(errorDiv);
+                                  }
+                                }}
+                              />
+                              <div className="absolute top-3 right-3 bg-primary/90 border rounded-full px-2 py-1 text-xs font-semibold text-primary-foreground shadow-sm">
+                                Generated
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {messageAttachments.length > 0 && (
                         <div className="flex flex-col gap-2 mt-2">
                           {messageAttachments.map((attachment) => (
@@ -106,11 +162,11 @@ export function Chat({
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="border-t p-4">
-        <div className="max-w-4xl mx-auto">
-          {messages.length === 0 && <Overview />}
+      <div className="border-t p-2 sm:p-4 bg-background">
+        <div className="max-w-full sm:max-w-2xl md:max-w-4xl mx-auto px-2 sm:px-0">
+          {messages.length === 0 && <div className="mb-3 sm:mb-4"><Overview /></div>}
           {attachments.length > 0 && (
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-2 mb-2 overflow-x-auto pb-2">
               {attachments.map((attachment) => (
                 <PromptInputAttachment key={attachment.url} data={attachment} />
               ))}

@@ -25,19 +25,8 @@ const isImageGenerationRequest = (prompt: string): boolean => {
 };
 
 const needsWebSearch = (prompt: string): boolean => {
-  const searchKeywords = [
-    "current",
-    "latest",
-    "recent",
-    "news",
-    "today",
-    "now",
-    "what happened",
-    "search for",
-    "find information about",
-  ];
-  const lowerPrompt = prompt.toLowerCase();
-  return searchKeywords.some((keyword) => lowerPrompt.includes(keyword));
+  // Always enable web search for community manager agent
+  return true;
 };
 
 const needsCodeExecution = (prompt: string): boolean => {
@@ -110,16 +99,30 @@ export async function POST(request: Request) {
   });
 
   if (shouldSearchWeb) {
-    tools.google_search = googleGateway.tools.googleSearch({});
+    try {
+      if (googleGateway?.tools?.googleSearch) {
+        tools.google_search = googleGateway.tools.googleSearch({});
+      }
+    } catch (error) {
+      console.warn("Google Search tool not available:", error);
+    }
   }
 
   if (shouldUseUrlContext) {
-    tools.url_context = googleGateway.tools.urlContext({});
+    try {
+      if (googleGateway?.tools?.urlContext) {
+        tools.url_context = googleGateway.tools.urlContext({});
+      }
+    } catch (error) {
+      console.warn("URL Context tool not available:", error);
+    }
   }
 
   if (shouldExecuteCode) {
     try {
-      tools.code_execution = googleGateway.tools.codeExecution({});
+      if (googleGateway?.tools?.codeExecution) {
+        tools.code_execution = googleGateway.tools.codeExecution({});
+      }
     } catch (error) {
       console.warn("Code execution tool not available:", error);
     }
@@ -160,19 +163,50 @@ export async function POST(request: Request) {
 
   const model = geminiModel;
 
-  let systemPrompt = `You are a helpful AI assistant powered by Google Gemini. 
-You can help users with a wide variety of tasks including:
-- Answering questions and providing information
-- Generating images from text descriptions
-- Searching the web for current information
-- Analyzing web content from URLs
-- Executing code for calculations and problem-solving
-- Processing and understanding documents (PDFs, images, YouTube videos)
+  let systemPrompt = `You are an expert Tech Community Manager AI Assistant, specialized in helping DevRel professionals and community managers build, grow, and engage thriving tech communities.
 
-Keep your responses helpful, accurate, and concise.`;
+Your expertise includes:
+
+**Community Strategy & Growth**
+- Developing community engagement strategies and growth plans
+- Planning and organizing tech events (conferences, meetups, hackathons, workshops)
+- Creating community programs (ambassador programs, mentorship, user groups)
+- Building community guidelines, codes of conduct, and governance models
+- Analyzing community metrics and KPIs for growth and engagement
+
+**Developer Relations**
+- Creating technical content (blog posts, tutorials, documentation)
+- Planning developer advocacy programs and campaigns
+- Building relationships with open source maintainers and contributors
+- Identifying and nurturing community champions and advocates
+- Managing developer feedback loops and feature requests
+
+**Content & Communication**
+- Crafting engaging social media content for tech audiences
+- Writing newsletters, announcements, and community updates
+- Developing technical documentation and getting started guides
+- Creating presentation decks and workshop materials
+- Responding to community inquiries and support requests
+
+**Platform & Tools Management**
+- Managing community platforms (Discord, Slack, forums, GitHub Discussions)
+- Setting up automation and bot workflows for community management
+- Tracking community sentiment and engagement metrics
+- Monitoring industry trends and competitive landscape
+- Finding relevant tech news, articles, and resources
+
+**Best Practices**
+- You search the web for the latest community trends, tools, and best practices
+- You provide data-driven recommendations backed by real-world examples
+- You stay updated on current tech news, conferences, and industry events
+- You help create inclusive, welcoming communities that value diversity
+- You balance community needs with business objectives
+
+Always be helpful, empathetic, and action-oriented. Provide specific, practical advice that community managers can implement immediately.`;
 
   if (imageUrl) {
-    systemPrompt += `\n\nAn image has been generated based on the user's request. The image URL is: ${imageUrl}`;
+    systemPrompt += `\n\nAn image has been generated based on the user's request. Share this URL in your response so the user can see it: ${imageUrl}
+IMPORTANT: Include the full URL in your response exactly as provided. The UI will automatically display it as an image.`;
   }
 
   const result = streamText({

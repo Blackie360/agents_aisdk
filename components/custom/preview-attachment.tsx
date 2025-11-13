@@ -12,31 +12,33 @@ export const PreviewAttachment = ({
   const { name, url, contentType } = attachment;
 
   return (
-    <div className="flex flex-col gap-2 max-w-16">
-      <div className="h-20 w-16 bg-muted rounded-md relative flex flex-col items-center justify-center">
+    <div className="flex flex-col gap-2 max-w-16 sm:max-w-20">
+      <div className="h-16 w-16 sm:h-20 sm:w-20 bg-card rounded border shadow-sm relative flex flex-col items-center justify-center overflow-hidden">
         {contentType ? (
           contentType.startsWith("image") ? (
             <img
               key={url}
               src={url}
               alt={name ?? "An image attachment"}
-              className="rounded-md size-full object-cover"
+              className="rounded size-full object-cover"
             />
           ) : (
-            <div className=""></div>
+            <div className="text-muted-foreground text-xs text-center p-1">
+              {contentType.split("/")[1]?.toUpperCase() || "FILE"}
+            </div>
           )
         ) : (
-          <div className=""></div>
+          <div className="text-muted-foreground text-xs">FILE</div>
         )}
 
         {isUploading && (
-          <div className="animate-spin absolute text-zinc-500">
+          <div className="animate-spin absolute text-primary">
             <LoaderIcon />
           </div>
         )}
       </div>
 
-      <div className="text-xs text-zinc-500 max-w-16 truncate">{name}</div>
+      <div className="text-xs text-muted-foreground max-w-16 sm:max-w-20 truncate">{name}</div>
     </div>
   );
 };

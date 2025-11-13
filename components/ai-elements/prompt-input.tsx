@@ -63,7 +63,10 @@ export function PromptInputTextarea({
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className={cn("min-h-[60px] max-h-[200px] resize-none pr-12", className)}
+      className={cn(
+        "min-h-[48px] sm:min-h-[60px] max-h-[160px] sm:max-h-[200px] resize-none pr-12 sm:pr-14",
+        className
+      )}
       rows={1}
       {...props}
     />
@@ -85,7 +88,7 @@ export function PromptInputSubmit({
       type="submit"
       disabled={disabled || status === "streaming"}
       className={cn(
-        "absolute bottom-2 right-2 size-8 p-0 rounded-full",
+        "absolute bottom-1.5 sm:bottom-2 right-1.5 sm:right-2 size-9 sm:size-8 p-0 rounded-full",
         className
       )}
       {...props}
@@ -125,7 +128,8 @@ export function PromptInputAttachment({
   return (
     <div
       className={cn(
-        "relative size-16 rounded-md overflow-hidden border bg-muted",
+        "relative size-14 sm:size-16 rounded overflow-hidden border",
+        "bg-card shadow-sm",
         className
       )}
       {...props}
@@ -137,7 +141,7 @@ export function PromptInputAttachment({
           className="size-full object-cover"
         />
       ) : (
-        <div className="flex items-center justify-center size-full text-xs">
+        <div className="flex items-center justify-center size-full text-xs p-1 text-center">
           {data.name}
         </div>
       )}

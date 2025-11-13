@@ -1,10 +1,10 @@
 <a href="https://chat.vercel.ai/">
-  <img alt="Next.js 14 and App Router-ready AI chatbot." src="app/(chat)/opengraph-image.png">
-  <h1 align="center">Next.js Gemini Chatbot</h1>
+  <img alt="Tech Community Manager AI Assistant" src="app/(chat)/opengraph-image.png">
+  <h1 align="center">Tech Community Manager AI</h1>
 </a>
 
 <p align="center">
-  An Open-Source AI Chatbot Template Built With Next.js and the AI SDK by Vercel.
+  An AI-powered assistant for DevRel professionals and community managers, built with Next.js and the AI SDK by Vercel.
 </p>
 
 <p align="center">
@@ -15,6 +15,40 @@
 </p>
 <br/>
 
+## What This Agent Can Do
+
+This specialized AI assistant helps DevRel professionals and community managers with:
+
+### Community Strategy & Growth
+- Develop community engagement strategies and growth plans
+- Create community programs (ambassador programs, mentorship, user groups)
+- Build community guidelines and codes of conduct
+- Analyze community metrics and KPIs
+
+### Event Planning & Management
+- Plan tech events (conferences, meetups, hackathons, workshops)
+- Create event runbooks and checklists
+- Develop speaker and sponsor outreach strategies
+- Design event marketing campaigns
+
+### Content & Communication
+- Craft engaging social media content for tech audiences
+- Write newsletters and community updates
+- Create technical tutorials and documentation
+- Develop presentation materials
+
+### Developer Relations
+- Plan developer advocacy programs
+- Build relationships with open source communities
+- Manage developer feedback and feature requests
+- Track industry trends and competitor activities
+
+### Web Research & Insights
+- **Always-on Google Search**: The agent has continuous access to web search to provide the latest information
+- Find relevant tech news, articles, and community best practices
+- Research upcoming conferences and events
+- Discover new community tools and platforms
+
 ## Features
 
 - [Next.js](https://nextjs.org) App Router
@@ -23,7 +57,8 @@
 - [AI SDK](https://sdk.vercel.ai/docs)
   - Unified API for generating text, structured objects, and tool calls with LLMs
   - Hooks for building dynamic chat and generative user interfaces
-  - Supports Google (default), OpenAI, Anthropic, Cohere, and other model providers
+  - **Google Search Integration**: Built-in web search capabilities for real-time information
+  - Supports Google Gemini 2.5 Flash (default) with advanced reasoning
 - [shadcn/ui](https://ui.shadcn.com)
   - Styling with [Tailwind CSS](https://tailwindcss.com)
   - Component primitives from [Radix UI](https://radix-ui.com) for accessibility and flexibility
@@ -35,7 +70,13 @@
 
 ## Model Providers
 
-This template ships with Google Gemini `gemini-1.5-pro` models as the default. However, with the [AI SDK](https://sdk.vercel.ai/docs), you can switch LLM providers to [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Cohere](https://cohere.com/), and [many more](https://sdk.vercel.ai/providers/ai-sdk-providers) with just a few lines of code.
+This agent uses Google Gemini `gemini-2.5-flash` as the default model, which provides:
+- Advanced reasoning capabilities for complex community management scenarios
+- Built-in Google Search integration for real-time web information
+- Fast response times for interactive conversations
+- Support for multimodal inputs (text, images, documents)
+
+However, with the [AI SDK](https://sdk.vercel.ai/docs), you can switch LLM providers to [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Cohere](https://cohere.com/), and [many more](https://sdk.vercel.ai/providers/ai-sdk-providers) with just a few lines of code.
 
 ## Deploy Your Own
 

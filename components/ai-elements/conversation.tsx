@@ -58,7 +58,7 @@ export function ConversationContent({
 
   return (
     <ScrollArea ref={scrollAreaRef} className={cn("flex-1", className)} {...props}>
-      <div className="flex flex-col gap-4 p-4">{children}</div>
+      <div className="flex flex-col gap-3 sm:gap-4">{children}</div>
     </ScrollArea>
   );
 }
@@ -115,12 +115,12 @@ export function ConversationScrollButton({
     <Button
       onClick={scrollToBottom}
       className={cn(
-        "absolute bottom-4 right-4 rounded-full size-10 p-0 shadow-lg",
+        "absolute bottom-2 right-2 sm:bottom-4 sm:right-4 rounded-full size-8 sm:size-10 p-0",
         className
       )}
       {...props}
     >
-      <ChevronDown className="size-4" />
+      <ChevronDown className="size-3 sm:size-4" />
     </Button>
   );
 }
