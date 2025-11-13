@@ -1,4 +1,4 @@
-import { type UIMessage } from "ai";
+import { Message } from "ai";
 import { InferSelectModel } from "drizzle-orm";
 import {
   pgTable,
@@ -13,10 +13,6 @@ export const user = pgTable("User", {
   id: uuid("id").primaryKey().notNull().defaultRandom(),
   email: varchar("email", { length: 64 }).notNull(),
   password: varchar("password", { length: 64 }),
-  googleRefreshToken: varchar("googleRefreshToken", { length: 512 }),
-  isCalendarConnected: boolean("isCalendarConnected")
-    .notNull()
-    .default(false),
 });
 
 export type User = InferSelectModel<typeof user>;
@@ -31,5 +27,17 @@ export const chat = pgTable("Chat", {
 });
 
 export type Chat = Omit<InferSelectModel<typeof chat>, "messages"> & {
-  messages: Array<UIMessage>;
+  messages: Array<Message>;
 };
+
+export const reservation = pgTable("Reservation", {
+  id: uuid("id").primaryKey().notNull().defaultRandom(),
+  createdAt: timestamp("createdAt").notNull(),
+  details: json("details").notNull(),
+  hasCompletedPayment: boolean("hasCompletedPayment").notNull().default(false),
+  userId: uuid("userId")
+    .notNull()
+    .references(() => user.id),
+});
+
+export type Reservation = InferSelectModel<typeof reservation>;

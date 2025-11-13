@@ -1,221 +1,117 @@
 "use client";
 
-import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import { Attachment, ToolInvocation } from "ai";
 import { motion } from "framer-motion";
+import { ReactNode } from "react";
 
-import {
-  type CalendarEvent,
-  CalendarEventCard,
-  CalendarEventCardSkeleton,
-  CalendarEventsList,
-  CalendarEventsListSkeleton,
-} from "./calendar-events";
 import { BotIcon, UserIcon } from "./icons";
 import { Markdown } from "./markdown";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
+import { AuthorizePayment } from "../flights/authorize-payment";
+import { DisplayBoardingPass } from "../flights/boarding-pass";
+import { CreateReservation } from "../flights/create-reservation";
+import { FlightStatus } from "../flights/flight-status";
+import { ListFlights } from "../flights/list-flights";
+import { SelectSeats } from "../flights/select-seats";
+import { VerifyPayment } from "../flights/verify-payment";
 
 export const Message = ({
   chatId,
-  message,
+  role,
+  content,
+  toolInvocations,
+  attachments,
 }: {
   chatId: string;
-  message: UIMessage;
+  role: string;
+  content: string | ReactNode;
+  toolInvocations: Array<ToolInvocation> | undefined;
+  attachments?: Array<Attachment>;
 }) => {
-  const { role, parts } = message;
-
-  // Filter out empty text parts and check if message has any visible content
-  const visibleParts = parts.filter((part) => {
-    if (part.type === "text") {
-      return typeof part.text === "string" && part.text.trim().length > 0;
-    }
-    return true; // Keep non-text parts (files, tools, etc.)
-  });
-
-  // Don't render messages with no visible content
-  if (visibleParts.length === 0) {
-    return null;
-  }
-
-  const isAssistant = role === "assistant";
-
   return (
     <motion.div
-      className={`flex flex-row gap-4 px-4 w-full first-of-type:pt-20 ${
-        isAssistant ? "justify-start" : "justify-end"
-      }`}
+      className={`flex flex-row gap-4 px-4 w-full md:w-[500px] md:px-0 first-of-type:pt-20`}
       initial={{ y: 5, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
     >
-      {isAssistant && (
-        <div className="size-[24px] border rounded-sm p-1 flex flex-col justify-center items-center shrink-0 text-zinc-500">
-          <BotIcon />
-        </div>
-      )}
-
-      <div
-        className={`flex flex-col gap-2 max-w-[80%] md:max-w-[500px] ${
-          isAssistant
-            ? "bg-muted rounded-lg px-4 py-3"
-            : "bg-primary text-primary-foreground rounded-lg px-4 py-3"
-        }`}
-      >
-        {visibleParts.map((part, index) => {
-          switch (part.type) {
-            case "text":
-              return (
-                <div
-                  key={index}
-                  className={`flex flex-col gap-4 ${
-                    isAssistant
-                      ? "text-foreground"
-                      : "text-primary-foreground"
-                  }`}
-                >
-                  <Markdown>{part.text}</Markdown>
-                </div>
-              );
-
-            case "file":
-              return (
-                <PreviewAttachment
-                  key={index}
-                  attachment={{
-                    type: "file",
-                    url: part.url,
-                    filename: part.filename,
-                    mediaType: part.mediaType,
-                  }}
-                />
-              );
-
-            default:
-              // Handle tool invocations
-              if (isToolUIPart(part)) {
-                const toolName = getToolName(part);
-                const { toolCallId, state, output } = part;
-
-                if (state === "output-available" && output !== undefined && output !== null) {
-                  return (
-                    <div key={toolCallId}>
-                      {toolName === "getWeather" ? (
-                        <Weather weatherAtLocation={output as any} />
-                      ) : toolName === "listEvents" ? (
-                        <CalendarEventsList data={output as any} />
-                      ) : toolName === "createEvent" ? (
-                        renderCalendarEventCard(output as any, "Event Scheduled", "created")
-                      ) : toolName === "updateEvent" ? (
-                        renderCalendarEventCard(output as any, "Event Updated", "updated")
-                      ) : toolName === "deleteEvent" ? (
-                        renderDeleteEvent(output as any)
-                      ) : (
-                        <div>{JSON.stringify(output, null, 2)}</div>
-                      )}
-                    </div>
-                  );
-                } else {
-                  // Tool is still loading/calling
-                  return (
-                    <div key={toolCallId} className="skeleton">
-                      {toolName === "getWeather" ? (
-                        <Weather />
-                      ) : toolName === "listEvents" ? (
-                        <CalendarEventsListSkeleton />
-                      ) : toolName === "createEvent" || toolName === "updateEvent" ? (
-                        <CalendarEventCardSkeleton />
-                      ) : null}
-                    </div>
-                  );
-                }
-              }
-              return null;
-          }
-        })}
+      <div className="size-[24px] border rounded-sm p-1 flex flex-col justify-center items-center shrink-0 text-zinc-500">
+        {role === "assistant" ? <BotIcon /> : <UserIcon />}
       </div>
 
-      {!isAssistant && (
-        <div className="size-[24px] border rounded-sm p-1 flex flex-col justify-center items-center shrink-0 text-zinc-500">
-          <UserIcon />
-        </div>
-      )}
+      <div className="flex flex-col gap-2 w-full">
+        {content && typeof content === "string" && (
+          <div className="text-zinc-800 dark:text-zinc-300 flex flex-col gap-4">
+            <Markdown>{content}</Markdown>
+          </div>
+        )}
+
+        {toolInvocations && (
+          <div className="flex flex-col gap-4">
+            {toolInvocations.map((toolInvocation) => {
+              const { toolName, toolCallId, state } = toolInvocation;
+
+              if (state === "result") {
+                const { result } = toolInvocation;
+
+                return (
+                  <div key={toolCallId}>
+                    {toolName === "getWeather" ? (
+                      <Weather weatherAtLocation={result} />
+                    ) : toolName === "displayFlightStatus" ? (
+                      <FlightStatus flightStatus={result} />
+                    ) : toolName === "searchFlights" ? (
+                      <ListFlights chatId={chatId} results={result} />
+                    ) : toolName === "selectSeats" ? (
+                      <SelectSeats chatId={chatId} availability={result} />
+                    ) : toolName === "createReservation" ? (
+                      Object.keys(result).includes("error") ? null : (
+                        <CreateReservation reservation={result} />
+                      )
+                    ) : toolName === "authorizePayment" ? (
+                      <AuthorizePayment intent={result} />
+                    ) : toolName === "displayBoardingPass" ? (
+                      <DisplayBoardingPass boardingPass={result} />
+                    ) : toolName === "verifyPayment" ? (
+                      <VerifyPayment result={result} />
+                    ) : (
+                      <div>{JSON.stringify(result, null, 2)}</div>
+                    )}
+                  </div>
+                );
+              } else {
+                return (
+                  <div key={toolCallId} className="skeleton">
+                    {toolName === "getWeather" ? (
+                      <Weather />
+                    ) : toolName === "displayFlightStatus" ? (
+                      <FlightStatus />
+                    ) : toolName === "searchFlights" ? (
+                      <ListFlights chatId={chatId} />
+                    ) : toolName === "selectSeats" ? (
+                      <SelectSeats chatId={chatId} />
+                    ) : toolName === "createReservation" ? (
+                      <CreateReservation />
+                    ) : toolName === "authorizePayment" ? (
+                      <AuthorizePayment />
+                    ) : toolName === "displayBoardingPass" ? (
+                      <DisplayBoardingPass />
+                    ) : null}
+                  </div>
+                );
+              }
+            })}
+          </div>
+        )}
+
+        {attachments && (
+          <div className="flex flex-row gap-2">
+            {attachments.map((attachment) => (
+              <PreviewAttachment key={attachment.url} attachment={attachment} />
+            ))}
+          </div>
+        )}
+      </div>
     </motion.div>
   );
 };
-
-function renderCalendarEventCard(
-  output: any,
-  heading: string,
-  status: "created" | "updated",
-) {
-  if (!output) {
-    return <CalendarEventCard event={null} heading={heading} statusIcon={status} />;
-  }
-
-  if (output?.error) {
-    return (
-      <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-        {output.error}
-      </div>
-    );
-  }
-
-  const event = (output?.event ?? output) as CalendarEvent | undefined;
-  const attendees = Array.isArray(event?.attendees) ? event?.attendees : undefined;
-  const subtitle =
-    output?.success === false
-      ? undefined
-      : status === "created"
-        ? "Created successfully"
-        : "Latest event details";
-
-  return (
-    <CalendarEventCard
-      event={event}
-      heading={heading}
-      subtitle={subtitle}
-      statusIcon={status === "created" ? "created" : "updated"}
-      footer={renderAttendees(attendees)}
-    />
-  );
-}
-
-function renderDeleteEvent(output: any) {
-  if (!output) {
-    return null;
-  }
-
-  if (output?.error) {
-    return (
-      <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-        {output.error}
-      </div>
-    );
-  }
-
-  if (output?.success) {
-    return (
-      <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-500">
-        Event deleted successfully.
-      </div>
-    );
-  }
-
-  return <div>{JSON.stringify(output, null, 2)}</div>;
-}
-
-function renderAttendees(attendees?: CalendarEvent["attendees"]) {
-  if (!attendees || attendees.length === 0) {
-    return undefined;
-  }
-
-  const summary = attendees
-    .map((attendee) => attendee?.displayName || attendee?.email)
-    .filter(Boolean)
-    .join(", ");
-
-  if (!summary) {
-    return undefined;
-  }
-
-  return <span>Attendees: {summary}</span>;
-}

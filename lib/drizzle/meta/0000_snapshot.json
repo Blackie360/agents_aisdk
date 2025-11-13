@@ -131,19 +131,6 @@
           "type": "varchar(64)",
           "primaryKey": false,
           "notNull": false
-        },
-        "googleRefreshToken": {
-          "name": "googleRefreshToken",
-          "type": "varchar(512)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "isCalendarConnected": {
-          "name": "isCalendarConnected",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         }
       },
       "indexes": {},

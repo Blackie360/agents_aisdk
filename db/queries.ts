@@ -5,40 +5,16 @@ import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { user, chat, User } from "./schema";
+import { user, chat, User, reservation } from "./schema";
 
 // Optionally, if not using email/pass login, you can
 // use the Drizzle adapter for Auth.js / NextAuth
 // https://authjs.dev/reference/adapter/drizzle
-
-let client: ReturnType<typeof postgres> | null = null;
-let dbInstance: ReturnType<typeof drizzle> | null = null;
-
-function getDb() {
-  if (!dbInstance) {
-    const postgresUrl =
-      process.env.POSTGRES_URL ||
-      process.env.POSTGRES_PRISMA_URL ||
-      process.env.DATABASE_URL;
-
-    if (!postgresUrl) {
-      throw new Error(
-        "POSTGRES_URL is not defined. Make sure it's set in your environment variables.",
-      );
-    }
-
-    client = postgres(`${postgresUrl}?sslmode=require`, {
-      // Prefer IPv4 to avoid IPv6 connectivity issues
-      family: 4,
-    });
-    dbInstance = drizzle(client);
-  }
-  return dbInstance;
-}
+let client = postgres(`${process.env.POSTGRES_URL!}?sslmode=require`);
+let db = drizzle(client);
 
 export async function getUser(email: string): Promise<Array<User>> {
   try {
-    const db = getDb();
     return await db.select().from(user).where(eq(user.email, email));
   } catch (error) {
     console.error("Failed to get user from database");
@@ -47,16 +23,10 @@ export async function getUser(email: string): Promise<Array<User>> {
 }
 
 export async function createUser(email: string, password: string) {
-  try {
-    const db = getDb();
-    // If password is empty (OAuth user), insert without hashing
-    if (!password || password === "") {
-      return await db.insert(user).values({ email, password: null });
-    }
-    
-    let salt = genSaltSync(10);
-    let hash = hashSync(password, salt);
+  let salt = genSaltSync(10);
+  let hash = hashSync(password, salt);
 
+  try {
     return await db.insert(user).values({ email, password: hash });
   } catch (error) {
     console.error("Failed to create user in database");
@@ -74,22 +44,6 @@ export async function saveChat({
   userId: string;
 }) {
   try {
-    const db = getDb();
-    
-    // Verify user exists before saving chat
-    const [existingUser] = await db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
-    
-    if (!existingUser) {
-      console.error(
-        `Cannot save chat: User with ID ${userId} does not exist in database`
-      );
-      return null;
-    }
-    
     const selectedChats = await db.select().from(chat).where(eq(chat.id, id));
 
     if (selectedChats.length > 0) {
@@ -108,16 +62,13 @@ export async function saveChat({
       userId,
     });
   } catch (error) {
-    console.error("Failed to save chat in database:", error);
-    // Don't throw - allow chat to continue even if saving fails
-    // This prevents breaking the user experience
-    return null;
+    console.error("Failed to save chat in database");
+    throw error;
   }
 }
 
 export async function deleteChatById({ id }: { id: string }) {
   try {
-    const db = getDb();
     return await db.delete(chat).where(eq(chat.id, id));
   } catch (error) {
     console.error("Failed to delete chat by id from database");
@@ -127,7 +78,6 @@ export async function deleteChatById({ id }: { id: string }) {
 
 export async function getChatsByUserId({ id }: { id: string }) {
   try {
-    const db = getDb();
     return await db
       .select()
       .from(chat)
@@ -141,7 +91,6 @@ export async function getChatsByUserId({ id }: { id: string }) {
 
 export async function getChatById({ id }: { id: string }) {
   try {
-    const db = getDb();
     const [selectedChat] = await db.select().from(chat).where(eq(chat.id, id));
     return selectedChat;
   } catch (error) {
@@ -150,84 +99,44 @@ export async function getChatById({ id }: { id: string }) {
   }
 }
 
-export async function saveGoogleRefreshToken({
+export async function createReservation({
+  id,
   userId,
-  refreshToken,
+  details,
 }: {
+  id: string;
   userId: string;
-  refreshToken: string;
+  details: any;
 }) {
-  try {
-    const db = getDb();
-    return await db
-      .update(user)
-      .set({
-        googleRefreshToken: refreshToken,
-        isCalendarConnected: true,
-      })
-      .where(eq(user.id, userId));
-  } catch (error) {
-    console.error("Failed to save Google refresh token");
-    throw error;
-  }
+  return await db.insert(reservation).values({
+    id,
+    createdAt: new Date(),
+    userId,
+    hasCompletedPayment: false,
+    details: JSON.stringify(details),
+  });
 }
 
-export async function getGoogleRefreshToken({
-  userId,
-}: {
-  userId: string;
-}): Promise<string | null> {
-  try {
-    const db = getDb();
-    const [selectedUser] = await db
-      .select({ googleRefreshToken: user.googleRefreshToken })
-      .from(user)
-      .where(eq(user.id, userId));
-    return selectedUser?.googleRefreshToken || null;
-  } catch (error) {
-    console.error("Failed to get Google refresh token:", error);
-    // Return null instead of throwing to handle gracefully
-    // This allows the app to continue even if there's a database issue
-    return null;
-  }
+export async function getReservationById({ id }: { id: string }) {
+  const [selectedReservation] = await db
+    .select()
+    .from(reservation)
+    .where(eq(reservation.id, id));
+
+  return selectedReservation;
 }
 
-export async function getCalendarConnectionStatus({
-  userId,
+export async function updateReservation({
+  id,
+  hasCompletedPayment,
 }: {
-  userId: string;
-}): Promise<boolean> {
-  try {
-    const db = getDb();
-    const [selectedUser] = await db
-      .select({ isCalendarConnected: user.isCalendarConnected })
-      .from(user)
-      .where(eq(user.id, userId));
-
-    return !!selectedUser?.isCalendarConnected;
-  } catch (error) {
-    console.error("Failed to get calendar connection status", error);
-    // Return false instead of throwing to prevent app crashes
-    // This handles cases where the column might not exist yet (migration not run)
-    return false;
-  }
-}
-
-export async function setCalendarConnectionStatus({
-  userId,
-  isConnected,
-}: {
-  userId: string;
-  isConnected: boolean;
+  id: string;
+  hasCompletedPayment: boolean;
 }) {
-  try {
-    const db = getDb();
-    return await db
-      .update(user)
-      .set({ isCalendarConnected: isConnected })
-      .where(eq(user.id, userId));
-  } catch (error) {
-    console.error("Failed to update calendar connection status");
-    throw error;
-  }
+  return await db
+    .update(reservation)
+    .set({
+      hasCompletedPayment,
+    })
+    .where(eq(reservation.id, id));
 }

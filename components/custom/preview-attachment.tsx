@@ -1,4 +1,4 @@
-import { type FileUIPart } from "ai";
+import { Attachment } from "ai";
 
 import { LoaderIcon } from "./icons";
 
@@ -6,22 +6,22 @@ export const PreviewAttachment = ({
   attachment,
   isUploading = false,
 }: {
-  attachment: FileUIPart;
+  attachment: Attachment;
   isUploading?: boolean;
 }) => {
-  const { filename, url, mediaType } = attachment;
+  const { name, url, contentType } = attachment;
 
   return (
     <div className="flex flex-col gap-2 max-w-16">
       <div className="h-20 w-16 bg-muted rounded-md relative flex flex-col items-center justify-center">
-        {mediaType ? (
-          mediaType.startsWith("image") ? (
+        {contentType ? (
+          contentType.startsWith("image") ? (
             // NOTE: it is recommended to use next/image for images
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={url}
               src={url}
-              alt={filename ?? "An image attachment"}
+              alt={name ?? "An image attachment"}
               className="rounded-md size-full object-cover"
             />
           ) : (
@@ -38,7 +38,7 @@ export const PreviewAttachment = ({
         )}
       </div>
 
-      <div className="text-xs text-zinc-500 max-w-16 truncate">{filename}</div>
+      <div className="text-xs text-zinc-500 max-w-16 truncate">{name}</div>
     </div>
   );
 };

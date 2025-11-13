@@ -10,30 +10,11 @@ export const authConfig = {
     // while this file is also used in non-Node.js environments
   ],
   callbacks: {
-    async redirect({ url, baseUrl }) {
-      // If redirecting after OAuth, preserve the original URL but clean query params
-      if (url.startsWith("/")) {
-        // Remove OAuth callback query params
-        const cleanUrl = url.split("?")[0];
-        return `${baseUrl}${cleanUrl}`;
-      }
-      if (new URL(url).origin === baseUrl) {
-        const cleanUrl = url.split("?")[0];
-        return cleanUrl;
-      }
-      return baseUrl;
-    },
-    async authorized({ auth, request: { nextUrl } }) {
+    authorized({ auth, request: { nextUrl } }) {
       let isLoggedIn = !!auth?.user;
       let isOnChat = nextUrl.pathname.startsWith("/");
       let isOnRegister = nextUrl.pathname.startsWith("/register");
       let isOnLogin = nextUrl.pathname.startsWith("/login");
-      let isOnError = nextUrl.pathname.startsWith("/api/auth/error");
-
-      // Always allow access to error pages
-      if (isOnError) {
-        return true;
-      }
 
       if (isLoggedIn && (isOnLogin || isOnRegister)) {
         return Response.redirect(new URL("/", nextUrl));

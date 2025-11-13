@@ -1,6 +1,6 @@
 "use client";
 
-import { ChatRequestOptions } from "ai";
+import { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai";
 import { motion } from "framer-motion";
 import React, {
   useRef,
@@ -13,27 +13,22 @@ import React, {
 } from "react";
 import { toast } from "sonner";
 
-import { CalendarDays } from "lucide-react";
-
-import { cn } from "@/lib/utils";
-
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from "./icons";
 import { PreviewAttachment } from "./preview-attachment";
 import useWindowSize from "./use-window-size";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-import { ConnectCalendarButton } from "./connect-calendar-button";
 
 const suggestedActions = [
   {
-    title: "Schedule a community event",
-    label: "for next week's meetup",
-    action: "Schedule a community event for next week's meetup",
+    title: "Help me book a flight",
+    label: "from San Francisco to London",
+    action: "Help me book a flight from San Francisco to London",
   },
   {
-    title: "Show me upcoming events",
-    label: "in my calendar",
-    action: "Show me upcoming events in my calendar",
+    title: "What is the status",
+    label: "of flight BA142 flying tmrw?",
+    action: "What is the status of flight BA142 flying tmrw?",
   },
 ];
 
@@ -45,22 +40,19 @@ export function MultimodalInput({
   attachments,
   setAttachments,
   messages,
-  sendMessage,
+  append,
   handleSubmit,
-  hasCalendarIntegration,
-  onToggleCalendar,
-  isCalendarVisible,
 }: {
   input: string;
   setInput: (value: string) => void;
   isLoading: boolean;
   stop: () => void;
-  attachments: Array<any>;
-  setAttachments: Dispatch<SetStateAction<Array<any>>>;
-  messages: Array<any>;
-  sendMessage: (
-    message: { text: string; files?: any[] } | { parts: Array<any> },
-    options?: ChatRequestOptions,
+  attachments: Array<Attachment>;
+  setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
+  messages: Array<Message>;
+  append: (
+    message: Message | CreateMessage,
+    chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (
     event?: {
@@ -68,9 +60,6 @@ export function MultimodalInput({
     },
     chatRequestOptions?: ChatRequestOptions,
   ) => void;
-  hasCalendarIntegration?: boolean;
-  onToggleCalendar?: () => void;
-  isCalendarVisible?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -97,24 +86,16 @@ export function MultimodalInput({
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
   const submitForm = useCallback(() => {
-    if (input.trim()) {
-      sendMessage(
-        {
-          text: input,
-          files: attachments.length > 0 ? attachments : undefined,
-        },
-        {
-          body: { id: messages[0]?.id || "" },
-        },
-      );
-      setAttachments([]);
-      setInput("");
+    handleSubmit(undefined, {
+      experimental_attachments: attachments,
+    });
 
-      if (width && width > 768) {
-        textareaRef.current?.focus();
-      }
+    setAttachments([]);
+
+    if (width && width > 768) {
+      textareaRef.current?.focus();
     }
-  }, [attachments, sendMessage, input, setInput, setAttachments, width, messages]);
+  }, [attachments, handleSubmit, setAttachments, width]);
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
@@ -131,10 +112,9 @@ export function MultimodalInput({
         const { url, pathname, contentType } = data;
 
         return {
-          type: "file" as const,
           url,
-          filename: pathname,
-          mediaType: contentType,
+          name: pathname,
+          contentType: contentType,
         };
       } else {
         const { error } = await response.json();
@@ -188,8 +168,9 @@ export function MultimodalInput({
               >
                 <button
                   onClick={async () => {
-                    sendMessage({
-                      text: suggestedAction.action,
+                    append({
+                      role: "user",
+                      content: suggestedAction.action,
                     });
                   }}
                   className="border-none bg-muted/50 w-full text-left border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-300 rounded-lg p-3 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex flex-col"
@@ -215,21 +196,18 @@ export function MultimodalInput({
 
       {(attachments.length > 0 || uploadQueue.length > 0) && (
         <div className="flex flex-row gap-2 overflow-x-scroll">
-          {attachments.map((attachment: any) => (
+          {attachments.map((attachment) => (
             <PreviewAttachment key={attachment.url} attachment={attachment} />
           ))}
 
           {uploadQueue.map((filename) => (
             <PreviewAttachment
               key={filename}
-              attachment={
-                {
-                  type: "file",
-                  url: "",
-                  filename,
-                  mediaType: "",
-                } as any
-              }
+              attachment={{
+                url: "",
+                name: filename,
+                contentType: "",
+              }}
               isUploading={true}
             />
           ))}
@@ -290,33 +268,6 @@ export function MultimodalInput({
       >
         <PaperclipIcon size={14} />
       </Button>
-
-      <div className="absolute bottom-2 right-24 m-0.5 flex items-center gap-2 sm:right-28">
-        {hasCalendarIntegration && onToggleCalendar ? (
-          <Button
-            type="button"
-            variant={isCalendarVisible ? "default" : "outline"}
-            size="sm"
-            className={cn(
-              "rounded-full px-3 py-1 text-xs",
-              isCalendarVisible
-                ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "border-dashed",
-            )}
-            onClick={(event) => {
-              event.preventDefault();
-              onToggleCalendar();
-            }}
-            aria-pressed={isCalendarVisible}
-          >
-            <CalendarDays className="mr-1 h-3.5 w-3.5" />
-            {isCalendarVisible ? "Hide calendar" : "Show calendar"}
-          </Button>
-        ) : null}
-        <div onClick={(e) => e.stopPropagation()}>
-          <ConnectCalendarButton />
-        </div>
-      </div>
     </div>
   );
 }

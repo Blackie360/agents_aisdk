@@ -8,27 +8,6 @@
       "when": 1728635586378,
       "tag": "0000_absurd_joshua_kane",
       "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1730000000000,
-      "tag": "0001_add_google_refresh_token",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1762233600000,
-      "tag": "0002_add_calendar_flag",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1762696091721,
-      "tag": "0003_natural_wrecking_crew",
-      "breakpoints": true
     }
   ]
 }

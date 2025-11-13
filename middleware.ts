@@ -1,8 +1,8 @@
-import { auth } from "@/app/(auth)/auth";
+import NextAuth from "next-auth";
 
-export default auth((req) => {
-  // req.auth is available here
-});
+import { authConfig } from "@/app/(auth)/auth.config";
+
+export default NextAuth(authConfig).auth;
 
 export const config = {
   matcher: ["/", "/:id", "/api/:path*", "/login", "/register"],
