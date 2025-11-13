@@ -5,7 +5,8 @@ import {
   generateText,
 } from "ai";
 import { put } from "@vercel/blob";
-import { gateway } from "@ai-sdk/gateway";
+import { google } from "@ai-sdk/google";
+import { GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
 
 import { geminiModel, geminiImageModel } from "@/ai";
 
@@ -92,36 +93,31 @@ export async function POST(request: Request) {
 
   const tools: Record<string, any> = {};
 
-  const gatewayApiKey =
-    process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_AI_GATEWAY_API_KEY;
-  const googleGateway = gateway("google", {
-    apiKey: gatewayApiKey,
-  });
-
+  // Always enable Google Search for community management research
   if (shouldSearchWeb) {
     try {
-      if (googleGateway?.tools?.googleSearch) {
-        tools.google_search = googleGateway.tools.googleSearch({});
-      }
+      tools.google_search = google.tools.googleSearch({});
     } catch (error) {
       console.warn("Google Search tool not available:", error);
     }
   }
 
+  // URL Context for analyzing web content
   if (shouldUseUrlContext) {
     try {
-      if (googleGateway?.tools?.urlContext) {
-        tools.url_context = googleGateway.tools.urlContext({});
+      if (google?.tools?.urlContext) {
+        tools.url_context = google.tools.urlContext({});
       }
     } catch (error) {
       console.warn("URL Context tool not available:", error);
     }
   }
 
+  // Code execution for calculations
   if (shouldExecuteCode) {
     try {
-      if (googleGateway?.tools?.codeExecution) {
-        tools.code_execution = googleGateway.tools.codeExecution({});
+      if (google?.tools?.codeExecution) {
+        tools.code_execution = google.tools.codeExecution({});
       }
     } catch (error) {
       console.warn("Code execution tool not available:", error);

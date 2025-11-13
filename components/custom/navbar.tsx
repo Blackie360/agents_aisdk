@@ -22,13 +22,13 @@ export const Navbar = async () => {
               src="/images/gemini-logo.png"
               height={20}
               width={20}
-              alt="gemini logo"
+              alt="Tech Community Manager AI"
             />
             <div className="text-muted-foreground hidden sm:block">
               <SlashIcon size={16} />
             </div>
             <div className="text-sm sm:text-base font-semibold truncate w-32 sm:w-48 md:w-fit tracking-wide">
-              Gemini Chatbot
+              Community Manager AI
             </div>
           </div>
         </div>

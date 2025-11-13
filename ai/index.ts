@@ -1,43 +1,36 @@
+import { google } from "@ai-sdk/google";
 import { gateway } from "@ai-sdk/gateway";
 
-// Vercel AI Gateway Configuration - REQUIRED
-// Gateway wrapper expects AI_GATEWAY_API_KEY, but we support both for compatibility
+// Check for API keys - support both direct Google API key and Gateway
+const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 const gatewayApiKey =
   process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_AI_GATEWAY_API_KEY;
 
-if (!gatewayApiKey) {
+// Use direct Google SDK if GOOGLE_GENERATIVE_AI_API_KEY is set
+// Otherwise fall back to Vercel AI Gateway
+const useDirectGoogle = !!googleApiKey;
+
+if (!googleApiKey && !gatewayApiKey) {
   throw new Error(
-    "AI_GATEWAY_API_KEY or VERCEL_AI_GATEWAY_API_KEY is required. Please set it in your .env.local file.",
+    "Either GOOGLE_GENERATIVE_AI_API_KEY or AI_GATEWAY_API_KEY/VERCEL_AI_GATEWAY_API_KEY is required. Please set one in your .env.local file.",
   );
 }
 
-// Configure gateway with API key
-// The gateway() function automatically routes through Vercel AI Gateway
-// Format: gateway('provider/model-name', { apiKey })
-const gatewayConfig = {
-  apiKey: gatewayApiKey,
-};
+// Primary language model - Gemini 2.5 Flash
+// Supports Google Search, code execution, and grounding
+export const geminiModel = useDirectGoogle
+  ? google("gemini-2.5-flash")
+  : gateway("google/gemini-2.5-flash", { apiKey: gatewayApiKey });
 
-// Primary language model - Gemini 2.5 Flash (supports all features)
-// Uses Vercel AI Gateway exclusively via gateway wrapper
-// Format: gateway('google/model-name') routes to Google through Vercel AI Gateway
-export const geminiModel = gateway("google/gemini-2.5-flash", gatewayConfig);
-
-// Image generation model - Gemini 2.5 Flash with image generation capability
-// Uses Vercel AI Gateway exclusively via gateway wrapper
-export const geminiImageModel = gateway(
-  "google/gemini-2.5-flash-image-preview",
-  gatewayConfig,
-);
+// Image generation model - Gemini 2.5 Flash with image generation
+export const geminiImageModel = useDirectGoogle
+  ? google("gemini-2.5-flash-image-preview")
+  : gateway("google/gemini-2.5-flash-image-preview", { apiKey: gatewayApiKey });
 
 // Embedding model for semantic search and similarity
-// Uses Vercel AI Gateway exclusively via gateway wrapper
-export const embeddingModel = gateway(
-  "google/gemini-embedding-001",
-  gatewayConfig,
-);
+export const embeddingModel = useDirectGoogle
+  ? google("gemini-embedding-001")
+  : gateway("google/gemini-embedding-001", { apiKey: gatewayApiKey });
 
-// Export gateway function for tools
-// Tools will use the gateway through the model configuration in streamText
-export const gatewayWithConfig = (model: string) =>
-  gateway(`google/${model}`, gatewayConfig);
+// Export the google instance for tool access
+export { google };

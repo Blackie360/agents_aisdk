@@ -84,8 +84,8 @@ export function Chat({
           {messages.length === 0 ? (
             <ConversationEmptyState
               icon={<MessageSquare className="size-10 sm:size-12 text-primary" />}
-              title="Start a conversation"
-              description="Ask me anything or try one of the suggestions below"
+              title="Welcome to Tech Community Manager AI"
+              description="I'm here to help you build, grow, and engage your developer community. Ask me about community strategy, event planning, DevRel campaigns, or the latest industry trends."
             />
           ) : (
             messages.map((message) => {
@@ -177,7 +177,8 @@ export function Chat({
               <PromptInputTextarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Send a message..."
+                placeholder={isLoading ? "Generating response..." : "Ask about community management, DevRel, events..."}
+                disabled={isLoading}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -186,9 +187,11 @@ export function Chat({
                     }
                   }
                 }}
+                className={isLoading ? "opacity-50 cursor-not-allowed" : ""}
               />
               <div className="absolute bottom-2 right-2 flex gap-1">
                 <PromptInputActionAddAttachments
+                  disabled={isLoading}
                   onFileSelect={async (files) => {
                     const uploadedAttachments: Array<{
                       url: string;
@@ -221,7 +224,7 @@ export function Chat({
                 />
                 <PromptInputSubmit
                   status={isLoading ? "streaming" : "ready"}
-                  disabled={!input.trim() && attachments.length === 0}
+                  disabled={isLoading || (!input.trim() && attachments.length === 0)}
                 />
               </div>
             </div>

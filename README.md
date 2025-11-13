@@ -78,9 +78,42 @@ This agent uses Google Gemini `gemini-2.5-flash` as the default model, which pro
 
 However, with the [AI SDK](https://sdk.vercel.ai/docs), you can switch LLM providers to [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Cohere](https://cohere.com/), and [many more](https://sdk.vercel.ai/providers/ai-sdk-providers) with just a few lines of code.
 
+## Example Use Cases
+
+Here are some ways you can use the Tech Community Manager AI:
+
+**Community Strategy**
+- "Help me create a 6-month community growth strategy for our developer platform"
+- "What are the best practices for building an ambassador program?"
+- "How can I measure community health and engagement?"
+
+**Event Planning**
+- "Create a checklist for organizing a virtual hackathon"
+- "What are some creative ideas for developer meetup topics?"
+- "Help me draft a CFP (Call for Proposals) for our upcoming conference"
+
+**Content Creation**
+- "Write a LinkedIn post announcing our new community forum"
+- "Create an outline for a technical tutorial on getting started with our API"
+- "Draft a monthly community newsletter highlighting key achievements"
+
+**DevRel Activities**
+- "Find the latest trends in developer advocacy for 2025"
+- "What are some successful open source community engagement strategies?"
+- "Help me create a developer feedback loop process"
+
+**Research & Insights**
+- "What are the top tech conferences happening in the next quarter?"
+- "Find recent articles about Discord vs Slack for developer communities"
+- "What are the latest community management tools and platforms?"
+
+The agent will automatically search the web to provide you with the most current and relevant information.
+
+📝 **For more detailed examples and use cases, see [COMMUNITY_MANAGER_PROMPTS.md](./COMMUNITY_MANAGER_PROMPTS.md)**
+
 ## Deploy Your Own
 
-You can deploy your own version of the Next.js AI Chatbot to Vercel with one click:
+You can deploy your own version of the Tech Community Manager AI to Vercel with one click:
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-labs%2Fgemini-chatbot&env=AUTH_SECRET,GOOGLE_GENERATIVE_AI_API_KEY&envDescription=Learn%20more%20about%20how%20to%20get%20the%20API%20Keys%20for%20the%20application&envLink=https%3A%2F%2Fgithub.com%2Fvercel-labs%2Fgemini-chatbot%2Fblob%2Fmain%2F.env.example&demo-title=Next.js%20Gemini%20Chatbot&demo-description=An%20Open-Source%20AI%20Chatbot%20Template%20Built%20With%20Next.js%20and%20the%20AI%20SDK%20by%20Vercel.&demo-url=https%3A%2F%2Fgemini.vercel.ai&stores=[{%22type%22:%22postgres%22},{%22type%22:%22blob%22}])
 

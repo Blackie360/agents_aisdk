@@ -68,16 +68,16 @@ export const Overview = () => {
 
           <div className="h-px bg-border opacity-50" />
 
-          <p className="text-xs sm:text-sm text-muted-foreground text-center">
-            Learn more at{" "}
-            <Link
-              className="text-primary hover:underline underline-offset-2 font-semibold"
-              href="https://sdk.vercel.ai/docs"
-              target="_blank"
-            >
-              AI SDK Docs
-            </Link>
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground text-center">
+              Try asking:
+            </p>
+            <div className="text-[10px] sm:text-xs text-muted-foreground space-y-1 text-center">
+              <p>• "Create a 3-month community growth strategy"</p>
+              <p>• "What are the latest DevRel trends for 2025?"</p>
+              <p>• "Help me plan a virtual hackathon"</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </motion.div>
