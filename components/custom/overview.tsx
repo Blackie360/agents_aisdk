@@ -20,17 +20,32 @@ export const Overview = () => {
           <MessageIcon />
         </p>
         <p>
-          This is an open source Chatbot template powered by the Google Gemini
-          model built with Next.js and the AI SDK by Vercel. It uses the{" "}
-          <code className="rounded-sm bg-muted-foreground/15 px-1.5 py-0.5">
-            streamText
-          </code>{" "}
-          function in the server and the{" "}
-          <code className="rounded-sm bg-muted-foreground/15 px-1.5 py-0.5">
-            useChat
-          </code>{" "}
-          hook on the client to create a seamless chat experience.
+          This is an advanced AI agent powered by Google Gemini 2.5 models built
+          with Next.js and the AI SDK by Vercel. It supports multiple capabilities:
         </p>
+        <ul className="list-disc list-inside space-y-1 text-sm">
+          <li>
+            <strong>Image Generation:</strong> Create images using Google Imagen 3.0
+          </li>
+          <li>
+            <strong>Web Search:</strong> Get real-time information with Google Search
+            grounding
+          </li>
+          <li>
+            <strong>URL Analysis:</strong> Analyze and summarize web content from URLs
+          </li>
+          <li>
+            <strong>Code Execution:</strong> Run Python code for calculations and
+            problem-solving
+          </li>
+          <li>
+            <strong>File Processing:</strong> Understand PDFs, images, and YouTube
+            videos
+          </li>
+          <li>
+            <strong>Advanced Reasoning:</strong> Complex thinking with Gemini 2.5 Flash
+          </li>
+        </ul>
         <p>
           {" "}
           You can learn more about the AI SDK by visiting the{" "}

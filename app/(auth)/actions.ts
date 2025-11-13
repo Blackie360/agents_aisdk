@@ -2,8 +2,6 @@
 
 import { z } from "zod";
 
-import { createUser, getUser } from "@/db/queries";
-
 import { signIn } from "./auth";
 
 const authFormSchema = z.object({
@@ -25,6 +23,7 @@ export const login = async (
       password: formData.get("password"),
     });
 
+    // No database - just sign in with any credentials
     await signIn("credentials", {
       email: validatedData.email,
       password: validatedData.password,
@@ -61,20 +60,14 @@ export const register = async (
       password: formData.get("password"),
     });
 
-    let [user] = await getUser(validatedData.email);
+    // No database - just sign in directly
+    await signIn("credentials", {
+      email: validatedData.email,
+      password: validatedData.password,
+      redirect: false,
+    });
 
-    if (user) {
-      return { status: "user_exists" } as RegisterActionState;
-    } else {
-      await createUser(validatedData.email, validatedData.password);
-      await signIn("credentials", {
-        email: validatedData.email,
-        password: validatedData.password,
-        redirect: false,
-      });
-
-      return { status: "success" };
-    }
+    return { status: "success" };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { status: "invalid_data" };

@@ -1,7 +1,7 @@
 "use client";
 
-import { Attachment, Message } from "ai";
-import { useChat } from "ai/react";
+import { UIMessage } from "ai";
+import { useChat } from "@ai-sdk/react";
 import { useState } from "react";
 
 import { Message as PreviewMessage } from "@/components/custom/message";
@@ -15,23 +15,28 @@ export function Chat({
   initialMessages,
 }: {
   id: string;
-  initialMessages: Array<Message>;
+  initialMessages: Array<UIMessage>;
 }) {
-  const { messages, handleSubmit, input, setInput, append, isLoading, stop } =
+  const { messages, sendMessage, status, stop } =
     useChat({
       id,
       body: { id },
       initialMessages,
-      maxSteps: 10,
       onFinish: () => {
         window.history.replaceState({}, "", `/chat/${id}`);
       },
     });
 
+  const isLoading = status === "streaming";
+
   const [messagesContainerRef, messagesEndRef] =
     useScrollToBottom<HTMLDivElement>();
 
-  const [attachments, setAttachments] = useState<Array<Attachment>>([]);
+  // In AI SDK v5, input state is managed locally
+  const [input, setInput] = useState("");
+
+  // In AI SDK v5, attachments are handled differently - using a simple array for now
+  const [attachments, setAttachments] = useState<Array<{ url: string; name: string; contentType: string }>>([]);
 
   return (
     <div className="flex flex-row justify-center pb-4 md:pb-8 h-dvh bg-background">
@@ -42,16 +47,30 @@ export function Chat({
         >
           {messages.length === 0 && <Overview />}
 
-          {messages.map((message) => (
-            <PreviewMessage
-              key={message.id}
-              chatId={id}
-              role={message.role}
-              content={message.content}
-              attachments={message.experimental_attachments}
-              toolInvocations={message.toolInvocations}
-            />
-          ))}
+          {messages.map((message) => {
+            // Extract content, attachments, and tool invocations from parts array (AI SDK v5)
+            const textParts = message.parts.filter((part) => part.type === "text");
+            const content = textParts.map((part) => (part as any).text).join("");
+            const fileParts = message.parts.filter((part) => part.type === "file");
+            const attachments = fileParts.map((part) => ({
+              url: (part as any).url || "",
+              name: (part as any).name || "",
+              contentType: (part as any).contentType || "",
+            }));
+            const toolParts = message.parts.filter((part) => part.type === "tool");
+            const toolInvocations = toolParts.map((part) => part as any);
+
+            return (
+              <PreviewMessage
+                key={message.id}
+                chatId={id}
+                role={message.role}
+                content={content}
+                attachments={attachments.length > 0 ? attachments : undefined}
+                toolInvocations={toolInvocations.length > 0 ? toolInvocations : undefined}
+              />
+            );
+          })}
 
           <div
             ref={messagesEndRef}
@@ -63,13 +82,12 @@ export function Chat({
           <MultimodalInput
             input={input}
             setInput={setInput}
-            handleSubmit={handleSubmit}
             isLoading={isLoading}
             stop={stop}
             attachments={attachments}
             setAttachments={setAttachments}
             messages={messages}
-            append={append}
+            sendMessage={sendMessage}
           />
         </form>
       </div>

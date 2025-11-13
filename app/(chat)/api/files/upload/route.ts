@@ -2,8 +2,6 @@ import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth } from "@/app/(auth)/auth";
-
 const FileSchema = z.object({
   file: z
     .instanceof(File)
@@ -20,11 +18,6 @@ const FileSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await auth();
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   if (request.body === null) {
     return new Response("Request body is empty", { status: 400 });

@@ -1,268 +1,222 @@
-import { convertToCoreMessages, Message, streamText } from "ai";
-import { z } from "zod";
+import {
+  convertToCoreMessages,
+  Message,
+  streamText,
+  generateText,
+} from "ai";
+import { put } from "@vercel/blob";
+import { gateway } from "@ai-sdk/gateway";
 
-import { geminiProModel } from "@/ai";
-import {
-  generateReservationPrice,
-  generateSampleFlightSearchResults,
-  generateSampleFlightStatus,
-  generateSampleSeatSelection,
-} from "@/ai/actions";
-import { auth } from "@/app/(auth)/auth";
-import {
-  createReservation,
-  deleteChatById,
-  getChatById,
-  getReservationById,
-  saveChat,
-} from "@/db/queries";
-import { generateUUID } from "@/lib/utils";
+import { geminiModel, geminiImageModel } from "@/ai";
+
+// Note: Google tools (googleSearch, urlContext, codeExecution) are used with the model
+// The gateway wrapper automatically routes all requests through Vercel AI Gateway
+
+// Helper function to detect if user wants to generate an image
+const isImageGenerationRequest = (prompt: string): boolean => {
+  const imageKeywords = [
+    "generate image",
+    "create image",
+    "make an image",
+    "draw",
+    "picture of",
+    "image of",
+    "generate a picture",
+    "create a picture",
+  ];
+  const lowerPrompt = prompt.toLowerCase();
+  return imageKeywords.some((keyword) => lowerPrompt.includes(keyword));
+};
+
+// Helper function to detect if user wants to search the web
+const needsWebSearch = (prompt: string): boolean => {
+  const searchKeywords = [
+    "current",
+    "latest",
+    "recent",
+    "news",
+    "today",
+    "now",
+    "what happened",
+    "search for",
+    "find information about",
+  ];
+  const lowerPrompt = prompt.toLowerCase();
+  return searchKeywords.some((keyword) => lowerPrompt.includes(keyword));
+};
+
+// Helper function to detect if user wants code execution
+const needsCodeExecution = (prompt: string): boolean => {
+  const codeKeywords = [
+    "calculate",
+    "compute",
+    "solve",
+    "python",
+    "code",
+    "algorithm",
+    "formula",
+    "math",
+    "equation",
+  ];
+  const lowerPrompt = prompt.toLowerCase();
+  return codeKeywords.some((keyword) => lowerPrompt.includes(keyword));
+};
+
+// Helper function to detect URLs in prompt
+const extractUrls = (text: string): string[] => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return text.match(urlRegex) || [];
+};
 
 export async function POST(request: Request) {
   const { id, messages }: { id: string; messages: Array<Message> } =
     await request.json();
 
-  const session = await auth();
-
-  if (!session) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
   const coreMessages = convertToCoreMessages(messages).filter(
     (message) => message.content.length > 0,
   );
 
-  const result = await streamText({
-    model: geminiProModel,
-    system: `\n
-        - you help users book flights!
-        - keep your responses limited to a sentence.
-        - DO NOT output lists.
-        - after every tool call, pretend you're showing the result to the user and keep your response limited to a phrase.
-        - today's date is ${new Date().toLocaleDateString()}.
-        - ask follow up questions to nudge user into the optimal flow
-        - ask for any details you don't know, like name of passenger, etc.'
-        - C and D are aisle seats, A and F are window seats, B and E are middle seats
-        - assume the most popular airports for the origin and destination
-        - here's the optimal flow
-          - search for flights
-          - choose flight
-          - select seats
-          - create reservation (ask user whether to proceed with payment or change reservation)
-          - authorize payment (requires user consent, wait for user to finish payment and let you know when done)
-          - display boarding pass (DO NOT display boarding pass without verifying payment)
-        '
-      `,
-    messages: coreMessages,
-    tools: {
-      getWeather: {
-        description: "Get the current weather at a location",
-        parameters: z.object({
-          latitude: z.number().describe("Latitude coordinate"),
-          longitude: z.number().describe("Longitude coordinate"),
-        }),
-        execute: async ({ latitude, longitude }) => {
-          const response = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m&hourly=temperature_2m&daily=sunrise,sunset&timezone=auto`,
-          );
+  // Get the last user message
+  const lastUserMessage = coreMessages
+    .filter((msg) => msg.role === "user")
+    .pop();
 
-          const weatherData = await response.json();
-          return weatherData;
-        },
-      },
-      displayFlightStatus: {
-        description: "Display the status of a flight",
-        parameters: z.object({
-          flightNumber: z.string().describe("Flight number"),
-          date: z.string().describe("Date of the flight"),
-        }),
-        execute: async ({ flightNumber, date }) => {
-          const flightStatus = await generateSampleFlightStatus({
-            flightNumber,
-            date,
-          });
+  if (!lastUserMessage) {
+    return new Response("No prompt provided", { status: 400 });
+  }
 
-          return flightStatus;
-        },
-      },
-      searchFlights: {
-        description: "Search for flights based on the given parameters",
-        parameters: z.object({
-          origin: z.string().describe("Origin airport or city"),
-          destination: z.string().describe("Destination airport or city"),
-        }),
-        execute: async ({ origin, destination }) => {
-          const results = await generateSampleFlightSearchResults({
-            origin,
-            destination,
-          });
+  // Extract text prompt from the last user message
+  const prompt = Array.isArray(lastUserMessage.content)
+    ? lastUserMessage.content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join(" ")
+    : typeof lastUserMessage.content === "string"
+      ? lastUserMessage.content
+      : "";
 
-          return results;
-        },
-      },
-      selectSeats: {
-        description: "Select seats for a flight",
-        parameters: z.object({
-          flightNumber: z.string().describe("Flight number"),
-        }),
-        execute: async ({ flightNumber }) => {
-          const seats = await generateSampleSeatSelection({ flightNumber });
-          return seats;
-        },
-      },
-      createReservation: {
-        description: "Display pending reservation details",
-        parameters: z.object({
-          seats: z.string().array().describe("Array of selected seat numbers"),
-          flightNumber: z.string().describe("Flight number"),
-          departure: z.object({
-            cityName: z.string().describe("Name of the departure city"),
-            airportCode: z.string().describe("Code of the departure airport"),
-            timestamp: z.string().describe("ISO 8601 date of departure"),
-            gate: z.string().describe("Departure gate"),
-            terminal: z.string().describe("Departure terminal"),
-          }),
-          arrival: z.object({
-            cityName: z.string().describe("Name of the arrival city"),
-            airportCode: z.string().describe("Code of the arrival airport"),
-            timestamp: z.string().describe("ISO 8601 date of arrival"),
-            gate: z.string().describe("Arrival gate"),
-            terminal: z.string().describe("Arrival terminal"),
-          }),
-          passengerName: z.string().describe("Name of the passenger"),
-        }),
-        execute: async (props) => {
-          const { totalPriceInUSD } = await generateReservationPrice(props);
-          const session = await auth();
+  if (!prompt.trim()) {
+    return new Response("No prompt provided", { status: 400 });
+  }
 
-          const id = generateUUID();
+  // Check for file attachments (PDFs, images, YouTube URLs)
+  const hasFileInputs = Array.isArray(lastUserMessage.content)
+    ? lastUserMessage.content.some((part) => part.type === "file")
+    : false;
 
-          if (session && session.user && session.user.id) {
-            await createReservation({
-              id,
-              userId: session.user.id,
-              details: { ...props, totalPriceInUSD },
+  // Extract URLs from prompt
+  const urls = extractUrls(prompt);
+
+  // Determine which tools to use
+  const shouldGenerateImage = isImageGenerationRequest(prompt);
+  const shouldSearchWeb = needsWebSearch(prompt);
+  const shouldExecuteCode = needsCodeExecution(prompt);
+  const shouldUseUrlContext = urls.length > 0;
+
+  // Build tools object
+  // Use gateway wrapper for tools to route through Vercel AI Gateway
+  const tools: Record<string, any> = {};
+
+  // Create gateway instance for Google tools (reused for all tools)
+  // Gateway wrapper expects AI_GATEWAY_API_KEY, but we support both for compatibility
+  const gatewayApiKey =
+    process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_AI_GATEWAY_API_KEY;
+  const googleGateway = gateway("google", {
+    apiKey: gatewayApiKey,
+  });
+
+  if (shouldSearchWeb) {
+    tools.google_search = googleGateway.tools.googleSearch({});
+  }
+
+  if (shouldUseUrlContext) {
+    tools.url_context = googleGateway.tools.urlContext({});
+  }
+
+  if (shouldExecuteCode) {
+    try {
+      // Code execution tool - available in Gemini 2.5 models
+      tools.code_execution = googleGateway.tools.codeExecution({});
+    } catch (error) {
+      console.warn("Code execution tool not available:", error);
+    }
+  }
+
+  // If image generation is requested, generate image using Gemini image model
+  let imageUrl: string | null = null;
+  if (shouldGenerateImage) {
+    try {
+      // Use Gemini model with image generation capability
+      // According to AI SDK docs, use generateText with gemini-2.5-flash-image-preview
+      const imageResult = await generateText({
+        model: geminiImageModel,
+        prompt: prompt,
+      });
+
+      // Check if image was generated in the response files
+      // Files are accessed via result.files with uint8Array property
+      if (imageResult.files && imageResult.files.length > 0) {
+        const imageFile = imageResult.files.find((file) =>
+          file.mediaType?.startsWith("image/"),
+        );
+
+        if (imageFile && imageFile.uint8Array) {
+          // Convert Uint8Array to buffer and upload to blob storage
+          try {
+            const imageBuffer = Buffer.from(imageFile.uint8Array);
+
+            const blob = await put(`generated-${Date.now()}.png`, imageBuffer, {
+              access: "public",
+              contentType: imageFile.mediaType || "image/png",
             });
 
-            return { id, ...props, totalPriceInUSD };
-          } else {
-            return {
-              error: "User is not signed in to perform this action!",
-            };
+            imageUrl = blob.url;
+          } catch (error) {
+            console.error("Failed to process image file:", error);
           }
-        },
-      },
-      authorizePayment: {
-        description:
-          "User will enter credentials to authorize payment, wait for user to repond when they are done",
-        parameters: z.object({
-          reservationId: z
-            .string()
-            .describe("Unique identifier for the reservation"),
-        }),
-        execute: async ({ reservationId }) => {
-          return { reservationId };
-        },
-      },
-      verifyPayment: {
-        description: "Verify payment status",
-        parameters: z.object({
-          reservationId: z
-            .string()
-            .describe("Unique identifier for the reservation"),
-        }),
-        execute: async ({ reservationId }) => {
-          const reservation = await getReservationById({ id: reservationId });
-
-          if (reservation.hasCompletedPayment) {
-            return { hasCompletedPayment: true };
-          } else {
-            return { hasCompletedPayment: false };
-          }
-        },
-      },
-      displayBoardingPass: {
-        description: "Display a boarding pass",
-        parameters: z.object({
-          reservationId: z
-            .string()
-            .describe("Unique identifier for the reservation"),
-          passengerName: z
-            .string()
-            .describe("Name of the passenger, in title case"),
-          flightNumber: z.string().describe("Flight number"),
-          seat: z.string().describe("Seat number"),
-          departure: z.object({
-            cityName: z.string().describe("Name of the departure city"),
-            airportCode: z.string().describe("Code of the departure airport"),
-            airportName: z.string().describe("Name of the departure airport"),
-            timestamp: z.string().describe("ISO 8601 date of departure"),
-            terminal: z.string().describe("Departure terminal"),
-            gate: z.string().describe("Departure gate"),
-          }),
-          arrival: z.object({
-            cityName: z.string().describe("Name of the arrival city"),
-            airportCode: z.string().describe("Code of the arrival airport"),
-            airportName: z.string().describe("Name of the arrival airport"),
-            timestamp: z.string().describe("ISO 8601 date of arrival"),
-            terminal: z.string().describe("Arrival terminal"),
-            gate: z.string().describe("Arrival gate"),
-          }),
-        }),
-        execute: async (boardingPass) => {
-          return boardingPass;
-        },
-      },
-    },
-    onFinish: async ({ responseMessages }) => {
-      if (session.user && session.user.id) {
-        try {
-          await saveChat({
-            id,
-            messages: [...coreMessages, ...responseMessages],
-            userId: session.user.id,
-          });
-        } catch (error) {
-          console.error("Failed to save chat");
         }
       }
-    },
+    } catch (error) {
+      console.error("Image generation failed:", error);
+      // Continue without image if generation fails
+    }
+  }
+
+  // Use gemini-2.5-flash for all text generation
+  const model = geminiModel;
+
+  // Build system prompt
+  let systemPrompt = `You are a helpful AI assistant powered by Google Gemini. 
+You can help users with a wide variety of tasks including:
+- Answering questions and providing information
+- Generating images from text descriptions
+- Searching the web for current information
+- Analyzing web content from URLs
+- Executing code for calculations and problem-solving
+- Processing and understanding documents (PDFs, images, YouTube videos)
+
+Keep your responses helpful, accurate, and concise.`;
+
+  if (imageUrl) {
+    systemPrompt += `\n\nAn image has been generated based on the user's request. The image URL is: ${imageUrl}`;
+  }
+
+  // Generate text response
+  // Note: When using gateway wrapper, providerOptions are passed through the gateway config
+  // The gateway wrapper handles routing, so we don't need providerOptions here
+  const result = streamText({
+    model,
+    system: systemPrompt,
+    messages: coreMessages,
+    tools: Object.keys(tools).length > 0 ? tools : undefined,
     experimental_telemetry: {
       isEnabled: true,
       functionId: "stream-text",
     },
   });
 
-  return result.toDataStreamResponse({});
+  // In AI SDK v5, use toUIMessageStreamResponse for useChat compatibility
+  return result.toUIMessageStreamResponse();
 }
 
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-
-  if (!id) {
-    return new Response("Not Found", { status: 404 });
-  }
-
-  const session = await auth();
-
-  if (!session || !session.user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  try {
-    const chat = await getChatById({ id });
-
-    if (chat.userId !== session.user.id) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
-    await deleteChatById({ id });
-
-    return new Response("Chat deleted", { status: 200 });
-  } catch (error) {
-    return new Response("An error occurred while processing your request", {
-      status: 500,
-    });
-  }
-}
+// DELETE endpoint removed - no database to delete from

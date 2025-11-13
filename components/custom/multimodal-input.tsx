@@ -1,6 +1,6 @@
 "use client";
 
-import { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai";
+import { UIMessage, CreateUIMessage } from "ai";
 import { motion } from "framer-motion";
 import React, {
   useRef,
@@ -21,14 +21,24 @@ import { Textarea } from "../ui/textarea";
 
 const suggestedActions = [
   {
-    title: "Help me book a flight",
-    label: "from San Francisco to London",
-    action: "Help me book a flight from San Francisco to London",
+    title: "Generate an image",
+    label: "of a futuristic cityscape at sunset",
+    action: "Generate an image of a futuristic cityscape at sunset",
   },
   {
-    title: "What is the status",
-    label: "of flight BA142 flying tmrw?",
-    action: "What is the status of flight BA142 flying tmrw?",
+    title: "Search the web",
+    label: "for the latest AI news",
+    action: "What are the latest AI news and developments?",
+  },
+  {
+    title: "Analyze a URL",
+    label: "summarize content from a webpage",
+    action: "Analyze this URL and summarize the key points: https://ai.google.dev",
+  },
+  {
+    title: "Calculate something",
+    label: "solve a math problem with code",
+    action: "Calculate the 20th Fibonacci number using Python",
   },
 ];
 
@@ -40,26 +50,17 @@ export function MultimodalInput({
   attachments,
   setAttachments,
   messages,
-  append,
+  sendMessage,
   handleSubmit,
 }: {
   input: string;
   setInput: (value: string) => void;
   isLoading: boolean;
   stop: () => void;
-  attachments: Array<Attachment>;
-  setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
-  messages: Array<Message>;
-  append: (
-    message: Message | CreateMessage,
-    chatRequestOptions?: ChatRequestOptions,
-  ) => Promise<string | null | undefined>;
-  handleSubmit: (
-    event?: {
-      preventDefault?: () => void;
-    },
-    chatRequestOptions?: ChatRequestOptions,
-  ) => void;
+  attachments: Array<{ url: string; name: string; contentType: string }>;
+  setAttachments: Dispatch<SetStateAction<Array<{ url: string; name: string; contentType: string }>>>;
+  messages: Array<UIMessage>;
+  sendMessage: (message?: { text: string; files?: Array<{ url: string; name: string; contentType: string }> }) => Promise<void>;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -86,16 +87,19 @@ export function MultimodalInput({
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
   const submitForm = useCallback(() => {
-    handleSubmit(undefined, {
-      experimental_attachments: attachments,
-    });
+    if (input.trim() || attachments.length > 0) {
+      sendMessage({
+        text: input,
+        files: attachments.length > 0 ? attachments : undefined,
+      });
+      setInput("");
+      setAttachments([]);
 
-    setAttachments([]);
-
-    if (width && width > 768) {
-      textareaRef.current?.focus();
+      if (width && width > 768) {
+        textareaRef.current?.focus();
+      }
     }
-  }, [attachments, handleSubmit, setAttachments, width]);
+  }, [input, attachments, sendMessage, setInput, setAttachments, width]);
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
@@ -168,9 +172,8 @@ export function MultimodalInput({
               >
                 <button
                   onClick={async () => {
-                    append({
-                      role: "user",
-                      content: suggestedAction.action,
+                    sendMessage({
+                      text: suggestedAction.action,
                     });
                   }}
                   className="border-none bg-muted/50 w-full text-left border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-300 rounded-lg p-3 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex flex-col"
@@ -251,7 +254,7 @@ export function MultimodalInput({
             event.preventDefault();
             submitForm();
           }}
-          disabled={input.length === 0 || uploadQueue.length > 0}
+          disabled={!input || input.length === 0 || uploadQueue.length > 0}
         >
           <ArrowUpIcon size={14} />
         </Button>

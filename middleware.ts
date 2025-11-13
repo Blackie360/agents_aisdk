@@ -1,9 +1,8 @@
-import NextAuth from "next-auth";
-
-import { authConfig } from "@/app/(auth)/auth.config";
-
-export default NextAuth(authConfig).auth;
+// No auth middleware - app is public
+export default function middleware() {
+  // No authentication required
+}
 
 export const config = {
-  matcher: ["/", "/:id", "/api/:path*", "/login", "/register"],
+  matcher: [],
 };

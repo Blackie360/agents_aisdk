@@ -2,13 +2,13 @@ import {
   CoreMessage,
   CoreToolMessage,
   generateId,
-  Message,
-  ToolInvocation,
+  UIMessage,
 } from "ai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-import { Chat } from "@/db/schema";
+// Database removed - Chat type no longer available
+// import { Chat } from "@/db/schema";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -56,8 +56,8 @@ function addToolMessageToChat({
   messages,
 }: {
   toolMessage: CoreToolMessage;
-  messages: Array<Message>;
-}): Array<Message> {
+  messages: Array<UIMessage>;
+}): Array<UIMessage> {
   return messages.map((message) => {
     if (message.toolInvocations) {
       return {
@@ -86,8 +86,8 @@ function addToolMessageToChat({
 
 export function convertToUIMessages(
   messages: Array<CoreMessage>,
-): Array<Message> {
-  return messages.reduce((chatMessages: Array<Message>, message) => {
+): Array<UIMessage> {
+  return messages.reduce((chatMessages: Array<UIMessage>, message) => {
     if (message.role === "tool") {
       return addToolMessageToChat({
         toolMessage: message as CoreToolMessage,
@@ -96,7 +96,7 @@ export function convertToUIMessages(
     }
 
     let textContent = "";
-    let toolInvocations: Array<ToolInvocation> = [];
+    let toolInvocations: Array<any> = []; // Tool invocations structure varies in v5
 
     if (typeof message.content === "string") {
       textContent = message.content;
@@ -126,13 +126,14 @@ export function convertToUIMessages(
   }, []);
 }
 
-export function getTitleFromChat(chat: Chat) {
-  const messages = convertToUIMessages(chat.messages as Array<CoreMessage>);
-  const firstMessage = messages[0];
+// Database removed - this function is no longer used
+// export function getTitleFromChat(chat: Chat) {
+//   const messages = convertToUIMessages(chat.messages as Array<CoreMessage>);
+//   const firstMessage = messages[0];
 
-  if (!firstMessage) {
-    return "Untitled";
-  }
+//   if (!firstMessage) {
+//     return "Untitled";
+//   }
 
-  return firstMessage.content;
-}
+//   return firstMessage.content;
+// }

@@ -1,4 +1,4 @@
-import { Attachment } from "ai";
+type Attachment = { url: string; name: string; contentType: string };
 
 import { LoaderIcon } from "./icons";
 
