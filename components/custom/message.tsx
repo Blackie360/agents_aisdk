@@ -1,8 +1,7 @@
 "use client";
 
-// In AI SDK v5, attachments and tool invocations are part of UIMessage content
 type Attachment = { url: string; name: string; contentType: string };
-type ToolInvocation = any; // Tool invocations structure may vary
+type ToolInvocation = any;
 import { motion } from "framer-motion";
 import { ReactNode } from "react";
 
@@ -44,7 +43,6 @@ export const Message = ({
         {attachments && attachments.length > 0 && (
           <div className="flex flex-col gap-4">
             {attachments.map((attachment) => {
-              // Display images larger for generated images
               if (attachment.contentType?.startsWith("image")) {
                 return (
                   <div key={attachment.url} className="w-full">

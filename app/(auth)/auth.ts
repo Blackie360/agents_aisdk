@@ -7,7 +7,6 @@ interface ExtendedSession extends Session {
   user: User;
 }
 
-// Simplified auth - no database, accepts any credentials
 export const {
   handlers: { GET, POST },
   auth,
@@ -19,8 +18,6 @@ export const {
     Credentials({
       credentials: {},
       async authorize({ email }: any) {
-        // No database - accept any email/password combination
-        // Return a mock user
         return {
           id: email || "guest",
           email: email || "guest@example.com",

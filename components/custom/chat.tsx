@@ -17,7 +17,6 @@ import {
   PromptInput,
   PromptInputTextarea,
   PromptInputSubmit,
-  PromptInputAttachments,
   PromptInputAttachment,
   PromptInputActionAddAttachments,
 } from "@/components/ai-elements/prompt-input";
@@ -110,14 +109,14 @@ export function Chat({
       <div className="border-t p-4">
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 && <Overview />}
+          {attachments.length > 0 && (
+            <div className="flex gap-2 mb-2">
+              {attachments.map((attachment) => (
+                <PromptInputAttachment key={attachment.url} data={attachment} />
+              ))}
+            </div>
+          )}
           <PromptInput onSubmit={handleSubmit}>
-            {attachments.length > 0 && (
-              <PromptInputAttachments>
-                {(attachment) => (
-                  <PromptInputAttachment key={attachment.url} data={attachment} />
-                )}
-              </PromptInputAttachments>
-            )}
             <div className="relative">
               <PromptInputTextarea
                 value={input}
@@ -135,7 +134,6 @@ export function Chat({
               <div className="absolute bottom-2 right-2 flex gap-1">
                 <PromptInputActionAddAttachments
                   onFileSelect={async (files) => {
-                    const formData = new FormData();
                     const uploadedAttachments: Array<{
                       url: string;
                       name: string;
@@ -143,6 +141,7 @@ export function Chat({
                     }> = [];
 
                     for (const file of Array.from(files)) {
+                      const formData = new FormData();
                       formData.append("file", file);
                       try {
                         const response = await fetch(`/api/files/upload`, {
