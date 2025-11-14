@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS "Account" (
+CREATE TABLE IF NOT EXISTS "account" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"userId" uuid NOT NULL,
 	"type" varchar(255) NOT NULL,
@@ -21,15 +21,15 @@ CREATE TABLE IF NOT EXISTS "Chat" (
 	"workspaceId" uuid
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "Session" (
+CREATE TABLE IF NOT EXISTS "session" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"sessionToken" varchar(255) NOT NULL,
 	"userId" uuid NOT NULL,
 	"expires" timestamp NOT NULL,
-	CONSTRAINT "Session_sessionToken_unique" UNIQUE("sessionToken")
+	CONSTRAINT "session_sessionToken_unique" UNIQUE("sessionToken")
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "User" (
+CREATE TABLE IF NOT EXISTS "user" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" varchar(255) NOT NULL,
 	"password" varchar(255),
@@ -38,14 +38,14 @@ CREATE TABLE IF NOT EXISTS "User" (
 	"emailVerified" timestamp,
 	"createdAt" timestamp DEFAULT now() NOT NULL,
 	"updatedAt" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "User_email_unique" UNIQUE("email")
+	CONSTRAINT "user_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "VerificationToken" (
+CREATE TABLE IF NOT EXISTS "verificationToken" (
 	"identifier" varchar(255) NOT NULL,
 	"token" varchar(255) NOT NULL,
 	"expires" timestamp NOT NULL,
-	CONSTRAINT "VerificationToken_token_unique" UNIQUE("token")
+	CONSTRAINT "verificationToken_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "Workspace" (
@@ -83,13 +83,13 @@ CREATE TABLE IF NOT EXISTS "WorkspaceMember" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "Chat" ADD CONSTRAINT "Chat_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "Chat" ADD CONSTRAINT "Chat_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -101,13 +101,13 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "Workspace" ADD CONSTRAINT "Workspace_ownerId_User_id_fk" FOREIGN KEY ("ownerId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "Workspace" ADD CONSTRAINT "Workspace_ownerId_user_id_fk" FOREIGN KEY ("ownerId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -119,7 +119,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "WorkspaceFile" ADD CONSTRAINT "WorkspaceFile_uploadedBy_User_id_fk" FOREIGN KEY ("uploadedBy") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "WorkspaceFile" ADD CONSTRAINT "WorkspaceFile_uploadedBy_user_id_fk" FOREIGN KEY ("uploadedBy") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

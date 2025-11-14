@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
-export const user = pgTable("User", {
+export const user = pgTable("user", {
   id: uuid("id").primaryKey().notNull().defaultRandom(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   password: varchar("password", { length: 255 }),
@@ -28,7 +28,7 @@ export const user = pgTable("User", {
 export type User = InferSelectModel<typeof user>;
 export type NewUser = InferInsertModel<typeof user>;
 
-export const account = pgTable("Account", {
+export const account = pgTable("account", {
   id: uuid("id").primaryKey().notNull().defaultRandom(),
   userId: uuid("userId")
     .notNull()
@@ -45,7 +45,7 @@ export const account = pgTable("Account", {
   session_state: varchar("session_state", { length: 255 }),
 });
 
-export const session = pgTable("Session", {
+export const session = pgTable("session", {
   id: uuid("id").primaryKey().notNull().defaultRandom(),
   sessionToken: varchar("sessionToken", { length: 255 }).notNull().unique(),
   userId: uuid("userId")
@@ -54,7 +54,7 @@ export const session = pgTable("Session", {
   expires: timestamp("expires").notNull(),
 });
 
-export const verificationToken = pgTable("VerificationToken", {
+export const verificationToken = pgTable("verificationToken", {
   identifier: varchar("identifier", { length: 255 }).notNull(),
   token: varchar("token", { length: 255 }).notNull().unique(),
   expires: timestamp("expires").notNull(),

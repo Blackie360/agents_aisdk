@@ -1,11 +1,11 @@
 {
-  "id": "0d744a93-ed6b-4ef8-8c43-d0ac7a05fc06",
+  "id": "e728cf74-29fd-4541-ac7d-834168c88af0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.Account": {
-      "name": "Account",
+    "public.account": {
+      "name": "account",
       "schema": "",
       "columns": {
         "id": {
@@ -84,10 +84,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "Account_userId_User_id_fk": {
-          "name": "Account_userId_User_id_fk",
-          "tableFrom": "Account",
-          "tableTo": "User",
+        "account_userId_user_id_fk": {
+          "name": "account_userId_user_id_fk",
+          "tableFrom": "account",
+          "tableTo": "user",
           "columnsFrom": [
             "userId"
           ],
@@ -140,10 +140,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "Chat_userId_User_id_fk": {
-          "name": "Chat_userId_User_id_fk",
+        "Chat_userId_user_id_fk": {
+          "name": "Chat_userId_user_id_fk",
           "tableFrom": "Chat",
-          "tableTo": "User",
+          "tableTo": "user",
           "columnsFrom": [
             "userId"
           ],
@@ -170,8 +170,8 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "public.Session": {
-      "name": "Session",
+    "public.session": {
+      "name": "session",
       "schema": "",
       "columns": {
         "id": {
@@ -202,10 +202,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "Session_userId_User_id_fk": {
-          "name": "Session_userId_User_id_fk",
-          "tableFrom": "Session",
-          "tableTo": "User",
+        "session_userId_user_id_fk": {
+          "name": "session_userId_user_id_fk",
+          "tableFrom": "session",
+          "tableTo": "user",
           "columnsFrom": [
             "userId"
           ],
@@ -218,8 +218,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "Session_sessionToken_unique": {
-          "name": "Session_sessionToken_unique",
+        "session_sessionToken_unique": {
+          "name": "session_sessionToken_unique",
           "nullsNotDistinct": false,
           "columns": [
             "sessionToken"
@@ -227,8 +227,8 @@
         }
       }
     },
-    "public.User": {
-      "name": "User",
+    "public.user": {
+      "name": "user",
       "schema": "",
       "columns": {
         "id": {
@@ -287,8 +287,8 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "User_email_unique": {
-          "name": "User_email_unique",
+        "user_email_unique": {
+          "name": "user_email_unique",
           "nullsNotDistinct": false,
           "columns": [
             "email"
@@ -296,8 +296,8 @@
         }
       }
     },
-    "public.VerificationToken": {
-      "name": "VerificationToken",
+    "public.verificationToken": {
+      "name": "verificationToken",
       "schema": "",
       "columns": {
         "identifier": {
@@ -323,8 +323,8 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "VerificationToken_token_unique": {
-          "name": "VerificationToken_token_unique",
+        "verificationToken_token_unique": {
+          "name": "verificationToken_token_unique",
           "nullsNotDistinct": false,
           "columns": [
             "token"
@@ -384,10 +384,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "Workspace_ownerId_User_id_fk": {
-          "name": "Workspace_ownerId_User_id_fk",
+        "Workspace_ownerId_user_id_fk": {
+          "name": "Workspace_ownerId_user_id_fk",
           "tableFrom": "Workspace",
-          "tableTo": "User",
+          "tableTo": "user",
           "columnsFrom": [
             "ownerId"
           ],
@@ -485,10 +485,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "WorkspaceFile_uploadedBy_User_id_fk": {
-          "name": "WorkspaceFile_uploadedBy_User_id_fk",
+        "WorkspaceFile_uploadedBy_user_id_fk": {
+          "name": "WorkspaceFile_uploadedBy_user_id_fk",
           "tableFrom": "WorkspaceFile",
-          "tableTo": "User",
+          "tableTo": "user",
           "columnsFrom": [
             "uploadedBy"
           ],
