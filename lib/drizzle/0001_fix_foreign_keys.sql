@@ -24,7 +24,7 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "Session" DROP CONSTRAINT IF EXISTS "Session_userId_User_id_fk";
+  ALTER TABLE "session" DROP CONSTRAINT IF EXISTS "Session_userId_User_id_fk";
 EXCEPTION
   WHEN undefined_object THEN null;
 END $$;
