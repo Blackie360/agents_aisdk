@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Markdown } from "@/components/custom/markdown";
+import { Streamdown } from "streamdown";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function Response({
   className,
@@ -18,15 +19,23 @@ export function Response({
   return (
     <div 
       className={cn(
-        "w-full",
+        "w-full max-w-4xl",
         "text-foreground",
         className
       )} 
       {...props}
     >
-      <div className="bg-card border border-border rounded-lg p-4 sm:p-6 shadow-sm">
-        <Markdown>{content}</Markdown>
-      </div>
+      <Card className="shadow-md border-2">
+        <CardContent className="p-6 sm:p-8">
+          <Streamdown 
+            className="prose prose-sm sm:prose-base dark:prose-invert max-w-none"
+            parseIncompleteMarkdown={true}
+            controls={true}
+          >
+            {content}
+          </Streamdown>
+        </CardContent>
+      </Card>
     </div>
   );
 }

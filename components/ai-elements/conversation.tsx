@@ -65,8 +65,10 @@ export function ConversationContent({
     }
   }, [scrollAreaRef]);
 
+  // Remove dir prop if present as it conflicts with ScrollArea types
+  const { dir, ...restProps } = props as any;
   return (
-    <ScrollArea ref={scrollAreaRef} className={cn("flex-1", className)} {...props}>
+    <ScrollArea ref={scrollAreaRef} className={cn("flex-1", className)} {...restProps}>
       <div ref={contentRef} className="flex flex-col gap-3 sm:gap-4">{children}</div>
     </ScrollArea>
   );

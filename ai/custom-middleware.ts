@@ -1,3 +1,3 @@
-import { Experimental_LanguageModelV1Middleware } from "ai";
-
-export const customMiddleware: Experimental_LanguageModelV1Middleware = {};
+// Custom middleware for language models (currently unused)
+// This file can be used for future middleware implementations
+export const customMiddleware = {};

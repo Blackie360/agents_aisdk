@@ -59,25 +59,26 @@ function addToolMessageToChat({
   messages: Array<UIMessage>;
 }): Array<UIMessage> {
   return messages.map((message) => {
-    if (message.toolInvocations) {
+    const msg = message as any;
+    if (msg.toolInvocations) {
       return {
         ...message,
-        toolInvocations: message.toolInvocations.map((toolInvocation) => {
+        toolInvocations: msg.toolInvocations.map((toolInvocation: any) => {
           const toolResult = toolMessage.content.find(
-            (tool) => tool.toolCallId === toolInvocation.toolCallId,
+            (tool: any) => tool.toolCallId === toolInvocation.toolCallId,
           );
 
-          if (toolResult) {
+          if (toolResult && (toolResult as any).result !== undefined) {
             return {
               ...toolInvocation,
               state: "result",
-              result: toolResult.result,
+              result: (toolResult as any).result,
             };
           }
 
           return toolInvocation;
         }),
-      };
+      } as UIMessage;
     }
 
     return message;
@@ -109,7 +110,7 @@ export function convertToUIMessages(
             state: "call",
             toolCallId: content.toolCallId,
             toolName: content.toolName,
-            args: content.args,
+            args: (content as any).args,
           });
         }
       }
@@ -118,9 +119,19 @@ export function convertToUIMessages(
     chatMessages.push({
       id: generateId(),
       role: message.role,
-      content: textContent,
-      toolInvocations,
-    });
+      parts: [
+        {
+          type: "text",
+          text: textContent,
+        },
+        ...toolInvocations.map((inv) => ({
+          type: "tool-call" as const,
+          toolCallId: inv.toolCallId,
+          toolName: inv.toolName,
+          args: inv.args,
+        })),
+      ],
+    } as UIMessage);
 
     return chatMessages;
   }, []);

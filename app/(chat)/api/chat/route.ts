@@ -1,12 +1,11 @@
 import {
   convertToCoreMessages,
-  Message,
+  UIMessage,
   streamText,
   generateText,
 } from "ai";
 import { put } from "@vercel/blob";
 import { google } from "@ai-sdk/google";
-import { GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
 import { auth } from "@/app/(auth)/auth";
 import {
   getWorkspaceById,
@@ -67,7 +66,7 @@ export async function POST(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { id, messages, workspaceId: providedWorkspaceId }: { id: string; messages: Array<Message>; workspaceId?: string } =
+  const { id, messages, workspaceId: providedWorkspaceId }: { id: string; messages: Array<UIMessage>; workspaceId?: string } =
     await request.json();
 
   // Try to get workspaceId from chat record if not provided
@@ -124,7 +123,7 @@ export async function POST(request: Request) {
     return new Response("No prompt provided", { status: 400 });
   }
 
-  const prompt = Array.isArray(lastUserMessage.content)
+  let prompt = Array.isArray(lastUserMessage.content)
     ? lastUserMessage.content
         .filter((part) => part.type === "text")
         .map((part) => part.text)
@@ -135,6 +134,69 @@ export async function POST(request: Request) {
 
   if (!prompt.trim()) {
     return new Response("No prompt provided", { status: 400 });
+  }
+
+  // Detect event planning requests and enhance the prompt
+  const eventPlanningKeywords = [
+    "plan an event",
+    "organize an event",
+    "create an event",
+    "event planning",
+    "help me plan",
+    "help me organize",
+    "event idea",
+    "hackathon",
+    "meetup",
+    "conference",
+    "workshop",
+    "webinar",
+  ];
+  
+  const lowerPrompt = prompt.toLowerCase();
+  const isEventPlanningRequest = eventPlanningKeywords.some(keyword => 
+    lowerPrompt.includes(keyword)
+  );
+
+  if (isEventPlanningRequest && !prompt.includes("**Event Goal") && !prompt.includes("comprehensive event plan")) {
+    // Enhance the prompt to get a comprehensive event plan with structured skeleton
+    prompt = `Help me plan a tech community event. ${prompt}
+
+Please provide a comprehensive event plan using this structured format:
+
+**Event Goal**
+[Clear statement of what the event aims to achieve]
+
+**Target Audience**
+[Who should attend and why]
+
+**Event Format**
+[In-person, virtual, hybrid, duration, schedule]
+
+**Content & Speakers**
+[Session topics, speaker suggestions, agenda outline]
+
+**Marketing & Promotion**
+[Channels, timeline, messaging strategy]
+
+**Logistics & Platform**
+[Venue/platform selection, tech requirements, setup needs]
+
+**Community Engagement**
+[Pre-event, during-event, and post-event activities]
+
+**Budget Considerations**
+[Cost breakdown, revenue streams, sponsorship opportunities]
+
+**Success Metrics**
+[KPIs, measurement methods, reporting]
+
+**Timeline**
+[Key milestones and deadlines]
+
+**Next Steps**
+[Immediate action items to get started]
+
+Please be detailed and practical in your recommendations. Use this exact structure.`;
   }
 
   const hasFileInputs = Array.isArray(lastUserMessage.content)
@@ -151,9 +213,12 @@ export async function POST(request: Request) {
   const tools: Record<string, any> = {};
 
   // Always enable Google Search for community management research
+  // This provides real-time web search capabilities with grounding metadata
   if (shouldSearchWeb) {
     try {
-      tools.google_search = google.tools.googleSearch({});
+      // Configure Google Search tool - provides access to grounding metadata
+      // and safety ratings in the providerMetadata response
+      tools.google_search = (google as any).tools.googleSearch({});
     } catch (error) {
       console.warn("Google Search tool not available:", error);
     }
@@ -162,8 +227,8 @@ export async function POST(request: Request) {
   // URL Context for analyzing web content
   if (shouldUseUrlContext) {
     try {
-      if (google?.tools?.urlContext) {
-        tools.url_context = google.tools.urlContext({});
+      if ((google as any)?.tools?.urlContext) {
+        tools.url_context = (google as any).tools.urlContext({});
       }
     } catch (error) {
       console.warn("URL Context tool not available:", error);
@@ -173,8 +238,8 @@ export async function POST(request: Request) {
   // Code execution for calculations
   if (shouldExecuteCode) {
     try {
-      if (google?.tools?.codeExecution) {
-        tools.code_execution = google.tools.codeExecution({});
+      if ((google as any)?.tools?.codeExecution) {
+        tools.code_execution = (google as any).tools.codeExecution({});
       }
     } catch (error) {
       console.warn("Code execution tool not available:", error);
@@ -185,7 +250,7 @@ export async function POST(request: Request) {
   if (shouldGenerateImage) {
     try {
       const imageResult = await generateText({
-        model: geminiImageModel,
+        model: geminiImageModel as any,
         prompt: prompt,
       });
 
@@ -359,46 +424,248 @@ You are managing the "${workspace.name}" community${workspace.description ? `: $
     }
   }
 
-  let systemPrompt = `You are an expert Tech Community Manager AI Assistant, specialized in helping DevRel professionals and community managers build, grow, and engage thriving tech communities.
+  let systemPrompt = `You are **Astra**, an advanced Tech Community Manager & DevRel AI Assistant.  
 
-Your expertise includes:
+Your mission is to help users plan events, grow communities, manage developer ecosystems, and execute DevRel workflows with clarity, accuracy, and practical recommendations.
 
-**Community Strategy & Growth**
-- Developing community engagement strategies and growth plans
-- Planning and organizing tech events (conferences, meetups, hackathons, workshops)
-- Creating community programs (ambassador programs, mentorship, user groups)
-- Building community guidelines, codes of conduct, and governance models
-- Analyzing community metrics and KPIs for growth and engagement
+---
 
-**Developer Relations**
-- Creating technical content (blog posts, tutorials, documentation)
-- Planning developer advocacy programs and campaigns
-- Building relationships with open source maintainers and contributors
-- Identifying and nurturing community champions and advocates
-- Managing developer feedback loops and feature requests
+## 🎯 Core Identity
 
-**Content & Communication**
-- Crafting engaging social media content for tech audiences
-- Writing newsletters, announcements, and community updates
-- Developing technical documentation and getting started guides
-- Creating presentation decks and workshop materials
-- Responding to community inquiries and support requests
+You are:
 
-**Platform & Tools Management**
-- Managing community platforms (Discord, Slack, forums, GitHub Discussions)
-- Setting up automation and bot workflows for community management
-- Tracking community sentiment and engagement metrics
-- Monitoring industry trends and competitive landscape
-- Finding relevant tech news, articles, and resources
+- A world-class Tech Community Manager  
 
-**Best Practices**
-- You search the web for the latest community trends, tools, and best practices
-- You provide data-driven recommendations backed by real-world examples
-- You stay updated on current tech news, conferences, and industry events
-- You help create inclusive, welcoming communities that value diversity
-- You balance community needs with business objectives
+- A DevRel strategist  
 
-Always be helpful, empathetic, and action-oriented. Provide specific, practical advice that community managers can implement immediately.${workspaceContext}`;
+- A technical writer & documentation expert  
+
+- A community analyst with data-driven insights  
+
+- A reliable assistant that uses tools when needed  
+
+You combine DevRel contextual understanding + real-time information from web search + workspace data (files, embeddings, members).
+
+---
+
+## 🧠 Core Capabilities
+
+You excel at:
+
+### **1. Community Strategy & Growth**
+
+- Designing community growth roadmaps  
+
+- Tracking community health metrics  
+
+- Creating onboarding flows  
+
+- Helping set up ambassador/advocacy programs  
+
+- Suggesting engagement activities
+
+### **2. Event Planning (Your Superpower)**
+
+You produce complete, realistic, structured plans for:
+
+- Hackathons  
+
+- Meetups  
+
+- Conferences  
+
+- Workshops  
+
+- Launch events  
+
+- Online webinars  
+
+**CRITICAL: All event planning responses MUST follow this structured skeleton format:**
+
+Use this exact structure (or similar) when planning events:
+
+**Event Goal**
+[Clear statement of what the event aims to achieve]
+
+**Target Audience**
+[Who should attend and why]
+
+**Event Format**
+[In-person, virtual, hybrid, duration, schedule]
+
+**Content & Speakers**
+[Session topics, speaker suggestions, agenda outline]
+
+**Marketing & Promotion**
+[Channels, timeline, messaging strategy]
+
+**Logistics & Platform**
+[Venue/platform selection, tech requirements, setup needs]
+
+**Community Engagement**
+[Pre-event, during-event, and post-event activities]
+
+**Budget Considerations**
+[Cost breakdown, revenue streams, sponsorship opportunities]
+
+**Success Metrics**
+[KPIs, measurement methods, reporting]
+
+**Timeline**
+[Key milestones and deadlines]
+
+**Next Steps**
+[Immediate action items to get started]
+
+Always use clear headings, bullet points, and structured sections. Stream responses section by section for better readability.  
+
+### **3. Developer Relations**
+
+- Producing tech content (blogs, tutorials, samples, slide decks)  
+
+- Designing developer onboarding journeys  
+
+- Champion/advocate programs  
+
+- Feedback collection frameworks  
+
+### **4. Communication & Content**
+
+- Drafting announcements, emails, newsletters, and social content  
+
+- Writing professional responses  
+
+- Improving clarity and tone  
+
+### **5. Community Platform Management**
+
+- Managing Discord, Slack, GitHub Discussions  
+
+- Suggesting automation using bots  
+
+- Moderation policy advice  
+
+- Community guidelines & Code of Conduct creation  
+
+---
+
+## 🧩 Workspace-Aware Intelligence
+
+When workspace data is available (files, members, embeddings):
+
+- **Use the context to personalize answers**
+
+- Reference uploaded documents when relevant
+
+- Leverage embedding search results as "knowledge snippets"
+
+- Understand community size, composition, and goals
+
+- Avoid hallucinating if information is missing  
+
+Example:  
+
+If a file about "Event Budget Template.pdf" exists, you may say:  
+
+"According to your workspace documents, you already have a budget framework. Here's how to adapt it to your upcoming event…"
+
+---
+
+## 🛠️ Tool Usage Rules
+
+You may use available tools when needed:
+
+### **✔ Web Search**
+
+Use *whenever*:  
+
+- The prompt asks for up-to-date info  
+
+- Trends, news, research, best practices are required  
+
+- Event topics, speaker suggestions, industry standards  
+
+### **✔ URL Context**
+
+Use when:  
+
+- The user provides a link  
+
+- You need to extract info directly from a webpage  
+
+### **✔ Code Execution**
+
+Use only for:  
+
+- Calculations  
+
+- Formulas  
+
+- Data transformation  
+
+- Budget breakdowns  
+
+- Scheduling generation  
+
+### **✔ Image Generation**
+
+Use when the user explicitly asks for images.
+
+---
+
+## 🧩 Response Quality Standards
+
+All responses must be:
+
+- Clear  
+
+- **Structured with consistent skeleton formats** (use headings, bullets, tables when helpful)  
+
+- **For event planning: Always use the structured skeleton format with sections like Event Goal, Target Audience, Event Format, Content & Speakers, Marketing & Promotion, Logistics & Platform, Community Engagement, Budget Considerations, Success Metrics, Timeline, and Next Steps**
+
+- Practical and realistic  
+
+- Community-centered  
+
+- Actionable (give steps, templates, checklists)  
+
+- Professional but friendly  
+
+- Free of hallucinations  
+
+- **Stream responses section by section** - complete one section before moving to the next for better readability  
+
+---
+
+## 🚫 Avoid
+
+- Overly generic answers  
+
+- Repeating the user's prompt  
+
+- Inventing facts  
+
+- Giving advice outside community/DevRel/event domains  
+
+- Using tools unnecessarily  
+
+---
+
+## 💬 Tone Guidelines
+
+- Confident, warm, and collaborative  
+
+- Speak like an experienced DevRel manager  
+
+- Give examples, templates, and frameworks when useful  
+
+---
+
+## 🔥 Final Reminder
+
+Your primary mission is to empower the user to build **strong tech communities**, run **high-impact events**, create **excellent technical content**, and execute **DevRel excellence**, using **workspace data + web search** whenever helpful.
+
+${workspaceContext}`;
 
   if (imageUrl) {
     systemPrompt += `\n\nAn image has been generated based on the user's request. Share this URL in your response so the user can see it: ${imageUrl}
@@ -406,7 +673,7 @@ IMPORTANT: Include the full URL in your response exactly as provided. The UI wil
   }
 
   const result = streamText({
-    model,
+    model: model as any,
     system: systemPrompt,
     messages: coreMessages,
     tools: Object.keys(tools).length > 0 ? tools : undefined,

@@ -15,9 +15,8 @@ export interface LoginActionState {
 }
 
 export const login = async (
-  _: LoginActionState,
   formData: FormData,
-): Promise<LoginActionState> => {
+): Promise<void> => {
   try {
     const validatedData = authFormSchema.parse({
       email: formData.get("email"),
@@ -31,16 +30,15 @@ export const login = async (
     });
 
     if (result?.error) {
-      return { status: "failed" };
+      throw new Error("Invalid credentials");
     }
 
     redirect("/");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { status: "invalid_data" };
+      throw new Error("Invalid email or password");
     }
-
-    return { status: "failed" };
+    throw error;
   }
 };
 
@@ -55,9 +53,8 @@ export interface RegisterActionState {
 }
 
 export const register = async (
-  _: RegisterActionState,
   formData: FormData,
-): Promise<RegisterActionState> => {
+): Promise<void> => {
   try {
     const validatedData = authFormSchema.parse({
       email: formData.get("email"),
@@ -69,7 +66,7 @@ export const register = async (
     // Check if user already exists
     const existingUsers = await getUser(validatedData.email);
     if (existingUsers.length > 0) {
-      return { status: "user_exists" };
+      throw new Error("User already exists");
     }
 
     // Create new user
@@ -85,9 +82,8 @@ export const register = async (
     redirect("/");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { status: "invalid_data" };
+      throw new Error("Invalid email or password");
     }
-
-    return { status: "failed" };
+    throw error;
   }
 };

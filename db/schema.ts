@@ -1,4 +1,4 @@
-import { Message } from "ai";
+import { UIMessage } from "ai";
 import { InferSelectModel, InferInsertModel } from "drizzle-orm";
 import {
   pgTable,
@@ -73,7 +73,7 @@ export const chat = pgTable("Chat", {
 });
 
 export type Chat = Omit<InferSelectModel<typeof chat>, "messages"> & {
-  messages: Array<Message>;
+  messages: Array<UIMessage>;
 };
 
 export const workspace = pgTable("Workspace", {

@@ -83,7 +83,7 @@ export async function POST(
 
     // Validate and extract members
     const members = parseResult.data
-      .map((row) => {
+      .map((row: Record<string, string>) => {
         // Try to find email column (case-insensitive)
         const emailKey =
           Object.keys(row).find(
@@ -101,18 +101,21 @@ export async function POST(
               key.toLowerCase() === "fullname",
           ) || null;
 
-        const email = row[emailKey]?.trim();
-        const name = nameKey ? row[nameKey]?.trim() : undefined;
+        const email = emailKey ? (row[emailKey] as string)?.trim() : undefined;
+        const name = nameKey ? (row[nameKey] as string)?.trim() : undefined;
 
         if (!email || !email.includes("@")) {
           return null;
         }
 
-        return {
-          name: name || undefined,
+        const member: { name?: string; email: string; metadata?: any } = {
           email: email.toLowerCase(),
           metadata: row,
         };
+        if (name) {
+          member.name = name;
+        }
+        return member;
       })
       .filter((member): member is { name?: string; email: string; metadata?: any } => member !== null);
 

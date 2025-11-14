@@ -51,7 +51,6 @@ export function MultimodalInput({
   setAttachments,
   messages,
   sendMessage,
-  handleSubmit,
 }: {
   input: string;
   setInput: (value: string) => void;

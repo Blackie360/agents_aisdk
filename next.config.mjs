@@ -4,6 +4,8 @@ const nextConfig = {
   images: {
     remotePatterns: [],
   },
+  transpilePackages: ['shiki', 'streamdown'],
+  serverExternalPackages: [],
 };
 
 export default nextConfig;

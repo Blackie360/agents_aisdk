@@ -119,7 +119,7 @@ export async function generateEmbeddings(
     console.log(`[Embeddings] Generating embeddings for ${texts.length} chunks...`);
     
     const result = await embedMany({
-      model: embeddingModel,
+      model: embeddingModel as any,
       values: texts,
     });
 
@@ -196,7 +196,7 @@ export async function searchEmbeddings(
 
   // Generate embedding for the query
   const result = await embedMany({
-    model: embeddingModel,
+    model: embeddingModel as any,
     values: [query],
   });
 

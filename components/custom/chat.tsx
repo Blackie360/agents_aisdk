@@ -61,12 +61,15 @@ export function Chat({
   
   const { messages, sendMessage, status, stop } = useChat({
     id,
-    body: { id, workspaceId: workspaceId || undefined },
     initialMessages,
+    body: {
+      id,
+      workspaceId: workspaceId || undefined,
+    },
     onFinish: () => {
       window.history.replaceState({}, "", `/chat/${id}`);
     },
-  });
+  } as any);
 
   const isLoading = status === "streaming";
   const [input, setInput] = useState("");
@@ -129,14 +132,24 @@ export function Chat({
     prevMessagesLength.current = messages.length;
   }, [messages.length]);
 
-  const handleSubmit = async (message: { text?: string; files?: Array<{ url: string; name: string; contentType: string }> }) => {
-    if (input.trim() || attachments.length > 0) {
-      await sendMessage({
-        text: input,
-        files: attachments.length > 0 ? attachments : undefined,
-      });
+  const handleSubmit = async (message?: { text?: string; files?: Array<{ url: string; name: string; contentType: string }> }) => {
+    const messageText = message?.text || input.trim();
+    const messageFiles = message?.files || attachments;
+    
+    if (messageText || messageFiles.length > 0) {
+      // Clear input immediately before sending
       setInput("");
       setAttachments([]);
+      
+      await sendMessage({
+        text: messageText,
+        files: messageFiles.length > 0 ? messageFiles.map(f => ({
+          type: "file" as const,
+          url: f.url,
+          name: f.name,
+          mediaType: f.contentType,
+        })) : undefined,
+      });
     }
   };
 
@@ -189,7 +202,8 @@ Based on these details, please provide me with a comprehensive event plan coveri
 
   return (
     <div className="flex flex-col h-dvh bg-background">
-      <Conversation ref={conversationRef} className="flex-1 relative">
+      <div ref={conversationRef} className="flex-1 relative">
+      <Conversation className="flex-1 relative">
         <ConversationContent className="p-2 sm:p-4 md:p-6">
           {showEventForm ? (
             <div className="flex items-center justify-center min-h-full py-8">
@@ -205,7 +219,8 @@ Based on these details, please provide me with a comprehensive event plan coveri
               description="I'm here to help you build, grow, and engage your developer community. Ask me about community strategy, event planning, DevRel campaigns, or the latest industry trends."
             />
           ) : (
-            messages.map((message) => {
+            <>
+            {messages.map((message) => {
                 const textParts = message.parts.filter(
                   (part) => part.type === "text"
                 );
@@ -235,7 +250,7 @@ Based on these details, please provide me with a comprehensive event plan coveri
                     <Message from={message.role as "user" | "assistant"}>
                       <MessageContent>
                       {textWithoutImages && (
-                        <div className="w-full max-w-4xl">
+                        <div className="w-full">
                           <Response>{textWithoutImages}</Response>
                         </div>
                       )}
@@ -285,11 +300,23 @@ Based on these details, please provide me with a comprehensive event plan coveri
                     </Message>
                   </div>
                 );
-              })
+              })}
+            {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                </div>
+                <span className="text-sm text-muted-foreground">Thinking...</span>
+              </div>
+            )}
+            </>
           )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
+      </div>
 
       <div className="border-t p-2 sm:p-4 bg-background">
         <div className="max-w-full sm:max-w-2xl md:max-w-4xl mx-auto px-2 sm:px-0">
@@ -325,7 +352,12 @@ Based on these details, please provide me with a comprehensive event plan coveri
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     if (!isLoading && (input.trim() || attachments.length > 0)) {
-                      handleSubmit({ text: input, files: attachments });
+                      const currentInput = input;
+                      const currentAttachments = attachments;
+                      // Clear input immediately
+                      setInput("");
+                      setAttachments([]);
+                      handleSubmit({ text: currentInput, files: currentAttachments });
                     }
                   }
                 }}
