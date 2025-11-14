@@ -22,7 +22,6 @@ import {
   PromptInputActionAddAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { PreviewAttachment } from "./preview-attachment";
-import { Overview } from "./overview";
 import { EventPlannerForm } from "./event-planner-form";
 import { Button } from "../ui/button";
 
@@ -226,7 +225,6 @@ Based on these details, please provide me with a comprehensive event plan coveri
         <div className="max-w-full sm:max-w-2xl md:max-w-4xl mx-auto px-2 sm:px-0">
           {messages.length === 0 && !showEventForm && (
             <>
-              <div className="mb-3 sm:mb-4"><Overview /></div>
               <div className="mb-3">
                 <Button
                   onClick={() => setShowEventForm(true)}
