@@ -12,7 +12,11 @@ import {
   getWorkspaceById,
   getWorkspaceMembers,
   getWorkspaceFiles,
+  getChatById,
+  saveChat,
+  getWorkspaceFileEmbeddings,
 } from "@/db/queries";
+import { searchEmbeddings } from "@/lib/embeddings";
 
 import { geminiModel, geminiImageModel } from "@/ai";
 
@@ -63,8 +67,50 @@ export async function POST(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { id, messages, workspaceId }: { id: string; messages: Array<Message>; workspaceId?: string } =
+  const { id, messages, workspaceId: providedWorkspaceId }: { id: string; messages: Array<Message>; workspaceId?: string } =
     await request.json();
+
+  // Try to get workspaceId from chat record if not provided
+  let workspaceId = providedWorkspaceId;
+  if (!workspaceId && id) {
+    try {
+      const chat = await getChatById({ id });
+      if (chat?.workspaceId) {
+        workspaceId = chat.workspaceId;
+      }
+    } catch (error) {
+      console.error("Failed to load chat record:", error);
+    }
+  }
+
+  // Save workspaceId to chat record if provided and different from existing
+  if (providedWorkspaceId && id) {
+    try {
+      const chat = await getChatById({ id });
+      // If chat exists and workspaceId is different, update it
+      // If chat doesn't exist yet, create it with workspaceId
+      if (chat) {
+        if (chat.workspaceId !== providedWorkspaceId) {
+          await saveChat({
+            id,
+            messages: chat.messages as any,
+            userId: chat.userId,
+            workspaceId: providedWorkspaceId,
+          });
+        }
+      } else {
+        // Chat doesn't exist yet, create it with workspaceId
+        await saveChat({
+          id,
+          messages: [],
+          userId: session.user.id,
+          workspaceId: providedWorkspaceId,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to save workspaceId to chat:", error);
+    }
+  }
 
   const coreMessages = convertToCoreMessages(messages).filter(
     (message) => message.content.length > 0,
@@ -262,6 +308,48 @@ You are managing the "${workspace.name}" community${workspace.description ? `: $
           }
 
           workspaceContext += `\n\nWhen answering questions, you can reference these workspace files and their content to provide context-aware responses specific to this community.`;
+        }
+
+        // Search embeddings for relevant content from uploaded files
+        try {
+          console.log(`[Chat] Searching embeddings for workspace: ${workspaceId}`);
+          const embeddings = await getWorkspaceFileEmbeddings(workspaceId);
+          console.log(`[Chat] Found ${embeddings.length} embeddings in database`);
+          
+          if (embeddings.length > 0) {
+            console.log(`[Chat] Searching embeddings for query: "${prompt.substring(0, 50)}..."`);
+            const searchResults = await searchEmbeddings(
+              prompt,
+              embeddings.map((emb) => ({
+                id: emb.id,
+                content: emb.content,
+                embedding: emb.embedding,
+                metadata: emb.metadata,
+              })),
+              5, // top 5 results
+              0.6, // minimum similarity threshold
+            );
+            console.log(`[Chat] Found ${searchResults.length} relevant results`);
+
+            if (searchResults.length > 0) {
+              workspaceContext += `\n\n**Relevant Content from Workspace Files:**\nBased on your question, here is relevant information from uploaded files:\n`;
+              searchResults.forEach((result, index) => {
+                workspaceContext += `\n${index + 1}. ${result.content.substring(0, 500)}${result.content.length > 500 ? "..." : ""}`;
+                if (result.metadata?.type === "data" && result.metadata?.startRow) {
+                  workspaceContext += `\n   (From rows ${result.metadata.startRow}-${result.metadata.endRow})`;
+                }
+              });
+              workspaceContext += `\n\nUse this information to provide accurate, context-aware answers about the workspace data.`;
+            } else {
+              console.log(`[Chat] No results above similarity threshold (0.6)`);
+            }
+          } else {
+            console.log(`[Chat] No embeddings found for workspace ${workspaceId}`);
+          }
+        } catch (error) {
+          console.error("[Chat] Failed to search embeddings:", error);
+          console.error("[Chat] Error details:", error instanceof Error ? error.message : String(error));
+          // Don't fail if embedding search fails
         }
 
         workspaceContext += `\n\nWhen providing advice, consider this specific community's context, size, member base, and available files. Personalize your recommendations to fit "${workspace.name}" community's needs.`;

@@ -130,6 +130,24 @@ export const workspaceFile = pgTable("WorkspaceFile", {
 
 export type WorkspaceFile = InferSelectModel<typeof workspaceFile>;
 
+export const workspaceFileEmbedding = pgTable("WorkspaceFileEmbedding", {
+  id: uuid("id").primaryKey().notNull().defaultRandom(),
+  workspaceFileId: uuid("workspaceFileId")
+    .notNull()
+    .references(() => workspaceFile.id, { onDelete: "cascade" }),
+  workspaceId: uuid("workspaceId")
+    .notNull()
+    .references(() => workspace.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  embedding: json("embedding").notNull(), // Array of numbers
+  chunkIndex: integer("chunkIndex").notNull(),
+  metadata: json("metadata"), // Additional metadata like row number, column names, etc.
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+
+export type WorkspaceFileEmbedding = InferSelectModel<typeof workspaceFileEmbedding>;
+export type NewWorkspaceFileEmbedding = InferInsertModel<typeof workspaceFileEmbedding>;
+
 // Relations
 export const userRelations = relations(user, ({ many }) => ({
   workspaces: many(workspace),
@@ -146,6 +164,15 @@ export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   members: many(workspaceMember),
   chats: many(chat),
   files: many(workspaceFile),
+  fileEmbeddings: many(workspaceFileEmbedding),
+}));
+
+export const workspaceFileRelations = relations(workspaceFile, ({ one, many }) => ({
+  workspace: one(workspace, {
+    fields: [workspaceFile.workspaceId],
+    references: [workspace.id],
+  }),
+  embeddings: many(workspaceFileEmbedding),
 }));
 
 export const workspaceMemberRelations = relations(

@@ -10,11 +10,13 @@ import {
   workspace,
   workspaceMember,
   workspaceFile,
+  workspaceFileEmbedding,
   User,
   Workspace,
   WorkspaceMember,
   NewWorkspace,
   NewWorkspaceMember,
+  NewWorkspaceFileEmbedding,
 } from "./schema";
 
 export async function getUser(email: string): Promise<Array<User>> {
@@ -42,10 +44,12 @@ export async function saveChat({
   id,
   messages,
   userId,
+  workspaceId,
 }: {
   id: string;
   messages: any;
   userId: string;
+  workspaceId?: string | null;
 }) {
   try {
     const selectedChats = await db.select().from(chat).where(eq(chat.id, id));
@@ -55,6 +59,7 @@ export async function saveChat({
         .update(chat)
         .set({
           messages: JSON.stringify(messages),
+          ...(workspaceId !== undefined && { workspaceId }),
         })
         .where(eq(chat.id, id));
     }
@@ -64,6 +69,7 @@ export async function saveChat({
       createdAt: new Date(),
       messages: JSON.stringify(messages),
       userId,
+      ...(workspaceId && { workspaceId }),
     });
   } catch (error) {
     console.error("Failed to save chat in database");
@@ -336,6 +342,63 @@ export async function getWorkspaceFiles(workspaceId: string) {
       .orderBy(desc(workspaceFile.createdAt));
   } catch (error) {
     console.error("Failed to get workspace files from database");
+    throw error;
+  }
+}
+
+// Embedding functions
+export async function createWorkspaceFileEmbeddings(
+  embeddings: Array<{
+    workspaceFileId: string;
+    workspaceId: string;
+    content: string;
+    embedding: number[];
+    chunkIndex: number;
+    metadata?: any;
+  }>,
+) {
+  try {
+    const insertedEmbeddings = await db
+      .insert(workspaceFileEmbedding)
+      .values(
+        embeddings.map((emb) => ({
+          workspaceFileId: emb.workspaceFileId,
+          workspaceId: emb.workspaceId,
+          content: emb.content,
+          embedding: emb.embedding as any,
+          chunkIndex: emb.chunkIndex,
+          metadata: emb.metadata || null,
+        })),
+      )
+      .returning();
+    return insertedEmbeddings;
+  } catch (error) {
+    console.error("Failed to create workspace file embeddings in database");
+    throw error;
+  }
+}
+
+export async function deleteWorkspaceFileEmbeddings(workspaceFileId: string) {
+  try {
+    await db
+      .delete(workspaceFileEmbedding)
+      .where(eq(workspaceFileEmbedding.workspaceFileId, workspaceFileId));
+    return true;
+  } catch (error) {
+    console.error("Failed to delete workspace file embeddings from database");
+    throw error;
+  }
+}
+
+export async function getWorkspaceFileEmbeddings(workspaceId: string) {
+  try {
+    return await db
+      .select()
+      .from(workspaceFileEmbedding)
+      .where(eq(workspaceFileEmbedding.workspaceId, workspaceId))
+      .orderBy(workspaceFileEmbedding.chunkIndex);
+  } catch (error) {
+    console.error("Failed to get workspace file embeddings from database");
     throw error;
   }
 }

@@ -5,7 +5,13 @@ import {
   getWorkspaceById,
   upsertWorkspaceMembers,
   createWorkspaceFile,
+  deleteWorkspaceFileEmbeddings,
+  createWorkspaceFileEmbeddings,
 } from "@/db/queries";
+import {
+  extractTextFromFile,
+  generateEmbeddings,
+} from "@/lib/embeddings";
 import Papa from "papaparse";
 
 export async function POST(
@@ -124,7 +130,7 @@ export async function POST(
     });
 
     // Save file reference
-    await createWorkspaceFile({
+    const workspaceFile = await createWorkspaceFile({
       workspaceId: params.id,
       fileName: file.name,
       fileUrl: blob.url,
@@ -132,6 +138,59 @@ export async function POST(
       mimeType: file.type || "text/csv",
       uploadedBy: session.user.id,
     });
+
+    // Generate embeddings for the file content
+    let embeddingsCreated = 0;
+    let embeddingError: string | null = null;
+    
+    try {
+      console.log(`[Embeddings] Starting embedding generation for file: ${file.name}`);
+      
+      // Delete existing embeddings for this file if any
+      await deleteWorkspaceFileEmbeddings(workspaceFile.id);
+
+      // Extract text chunks from the file
+      const chunks = await extractTextFromFile(
+        fileContent,
+        file.name,
+        file.type || "text/csv",
+      );
+      console.log(`[Embeddings] Extracted ${chunks.length} chunks from file`);
+
+      if (chunks.length === 0) {
+        console.warn("[Embeddings] No chunks extracted from file");
+        embeddingError = "No content extracted from file";
+      } else {
+        // Generate embeddings
+        const embeddings = await generateEmbeddings(chunks);
+        console.log(`[Embeddings] Generated ${embeddings.length} embeddings`);
+
+        if (embeddings.length === 0) {
+          console.warn("[Embeddings] No embeddings generated");
+          embeddingError = "Failed to generate embeddings";
+        } else {
+          // Store embeddings in database
+          const storedEmbeddings = await createWorkspaceFileEmbeddings(
+            embeddings.map((emb, index) => ({
+              workspaceFileId: workspaceFile.id,
+              workspaceId: params.id,
+              content: emb.content,
+              embedding: emb.embedding,
+              chunkIndex: index,
+              metadata: emb.metadata,
+            })),
+          );
+          embeddingsCreated = storedEmbeddings.length;
+          console.log(`[Embeddings] Successfully stored ${embeddingsCreated} embeddings in database`);
+        }
+      }
+    } catch (error) {
+      console.error("[Embeddings] Failed to generate embeddings for file:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("[Embeddings] Error details:", errorMessage);
+      embeddingError = errorMessage;
+      // Don't fail the upload if embeddings fail, just log the error
+    }
 
     // Upsert members
     const insertedMembers = await upsertWorkspaceMembers(params.id, members);
@@ -141,6 +200,8 @@ export async function POST(
       membersAdded: insertedMembers.length,
       totalRows: parseResult.data.length,
       fileUrl: blob.url,
+      embeddingsCreated,
+      ...(embeddingError && { embeddingWarning: embeddingError }),
     });
   } catch (error) {
     console.error("Failed to upload CSV:", error);

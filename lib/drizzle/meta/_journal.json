@@ -15,6 +15,13 @@
       "when": 1763107200000,
       "tag": "0001_fix_foreign_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1763111016599,
+      "tag": "0002_brainy_piledriver",
+      "breakpoints": true
     }
   ]
 }

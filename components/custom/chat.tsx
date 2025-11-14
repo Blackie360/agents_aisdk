@@ -49,11 +49,15 @@ function removeImageUrls(text: string): string {
 export function Chat({
   id,
   initialMessages,
+  initialWorkspaceId,
 }: {
   id: string;
   initialMessages: Array<UIMessage>;
+  initialWorkspaceId?: string;
 }) {
-  const [workspaceId] = useQueryState("workspace", parseAsString);
+  const [workspaceIdFromQuery] = useQueryState("workspace", parseAsString);
+  // Use workspaceId from query param if available, otherwise use initialWorkspaceId
+  const workspaceId = workspaceIdFromQuery || initialWorkspaceId;
   
   const { messages, sendMessage, status, stop } = useChat({
     id,
@@ -230,7 +234,11 @@ Based on these details, please provide me with a comprehensive event plan coveri
                   >
                     <Message from={message.role as "user" | "assistant"}>
                       <MessageContent>
-                      {textWithoutImages && <Response>{textWithoutImages}</Response>}
+                      {textWithoutImages && (
+                        <div className="w-full max-w-4xl">
+                          <Response>{textWithoutImages}</Response>
+                        </div>
+                      )}
                       {imageUrls.length > 0 && (
                         <div className="flex flex-col gap-3 mt-3">
                           {imageUrls.map((imageUrl, idx) => (
