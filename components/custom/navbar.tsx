@@ -3,6 +3,7 @@ import Image from "next/image";
 import { History } from "./history";
 import { SlashIcon } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,21 +34,24 @@ export const Navbar = async () => {
           </div>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              className="py-1.5 px-3 h-fit font-semibold"
-              variant="secondary"
-            >
-              Menu
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <ThemeToggle />
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-3">
+          <WorkspaceSwitcher />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className="py-1.5 px-3 h-fit font-semibold"
+                variant="secondary"
+              >
+                Menu
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem>
+                <ThemeToggle />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </>
   );

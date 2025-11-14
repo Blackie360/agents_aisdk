@@ -5,14 +5,20 @@ import postgres from "postgres";
 
 import * as schema from "./schema";
 
-if (!process.env.POSTGRES_URL) {
-  throw new Error("POSTGRES_URL is not defined");
+if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) {
+  throw new Error("DATABASE_URL or POSTGRES_URL must be defined");
 }
 
-const connectionString = process.env.POSTGRES_URL.includes("?")
-  ? process.env.POSTGRES_URL
-  : `${process.env.POSTGRES_URL}?sslmode=require`;
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
-const client = postgres(connectionString, { max: 1 });
+// Configure SSL for Supabase/PostgreSQL
+// Supabase requires SSL - let postgres.js handle it based on connection string
+const client = postgres(connectionString, {
+  max: 1,
+  ssl: "require",
+  connect_timeout: 30,
+  idle_timeout: 20,
+});
+
 export const db = drizzle(client, { schema });
 

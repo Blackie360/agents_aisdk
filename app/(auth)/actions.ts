@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { redirect } from "next/navigation";
 
 import { signIn } from "./auth";
 
@@ -23,14 +24,17 @@ export const login = async (
       password: formData.get("password"),
     });
 
-    // No database - just sign in with any credentials
-    await signIn("credentials", {
+    const result = await signIn("credentials", {
       email: validatedData.email,
       password: validatedData.password,
       redirect: false,
     });
 
-    return { status: "success" };
+    if (result?.error) {
+      return { status: "failed" };
+    }
+
+    redirect("/");
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { status: "invalid_data" };
@@ -78,7 +82,7 @@ export const register = async (
       redirect: false,
     });
 
-    return { status: "success" };
+    redirect("/");
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { status: "invalid_data" };

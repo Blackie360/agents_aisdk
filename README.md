@@ -69,7 +69,7 @@ This specialized AI assistant helps DevRel professionals and community managers 
   - Styling with [Tailwind CSS](https://tailwindcss.com)
   - Component primitives from [Radix UI](https://radix-ui.com) for accessibility and flexibility
 - Data Persistence
-  - [Vercel Postgres powered by Neon](https://vercel.com/storage/postgres) for saving chat history and user data
+  - PostgreSQL database (Supabase, Vercel Postgres, or any PostgreSQL provider) for saving chat history and user data
   - [Vercel Blob](https://vercel.com/storage/blob) for efficient object storage
 - [NextAuth.js](https://github.com/nextauthjs/next-auth)
   - Simple and secure authentication
@@ -132,17 +132,81 @@ You can deploy your own version of the Tech Community Manager AI to Vercel with 
 
 ## Running locally
 
-You will need to use the environment variables [defined in `.env.example`](.env.example) to run Next.js AI Chatbot. It's recommended you use [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables) for this, but a `.env` file is all that is necessary.
+### Prerequisites
 
-> Note: You should not commit your `.env` file or it will expose secrets that will allow others to control access to your various Google Cloud and authentication provider accounts.
+- Node.js 18+ and pnpm
+- PostgreSQL database (Supabase, Vercel Postgres, or any PostgreSQL provider)
+- Google OAuth credentials (for social login)
+- Google AI API key (for Gemini models)
 
-1. Install Vercel CLI: `npm i -g vercel`
-2. Link local instance with Vercel and GitHub accounts (creates `.vercel` directory): `vercel link`
-3. Download your environment variables: `vercel env pull`
+### Environment Variables
+
+Create a `.env.local` file in the root directory with the following variables:
 
 ```bash
+# Database (Required)
+# Your PostgreSQL connection string (DATABASE_URL is preferred, POSTGRES_URL also supported)
+DATABASE_URL=postgresql://user:password@host:port/database?sslmode=require
+
+# Authentication (Required)
+# Generate with: openssl rand -base64 32
+AUTH_SECRET=your_auth_secret_here
+
+# Google OAuth (Required for social login)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# Google AI API (Required)
+# Get from: https://aistudio.google.com/app/apikey
+GOOGLE_GENERATIVE_AI_API_KEY=your_google_api_key
+
+# Blob Storage (Required for file uploads)
+# Get from: https://vercel.com/storage/blob
+BLOB_READ_WRITE_TOKEN=your_blob_token
+
+# Optional: Vercel AI Gateway (Alternative to direct Google API)
+# AI_GATEWAY_API_KEY=your_gateway_key
+```
+
+### Setup Steps
+
+1. **Install dependencies:**
+```bash
 pnpm install
+```
+
+2. **Run database migrations:**
+```bash
+pnpm db:migrate
+# or
+tsx db/migrate.ts
+```
+
+3. **Start the development server:**
+```bash
 pnpm dev
 ```
 
-Your app template should now be running on [localhost:3000](http://localhost:3000/).
+Your app should now be running on [localhost:3000](http://localhost:3000/).
+
+### First Time Setup
+
+1. Visit `http://localhost:3000/register` to create an account
+2. Sign in with email/password or Google OAuth
+3. Create your first workspace (e.g., "Cursor Community", "Supabase Community")
+4. Upload a CSV file with member names and emails
+5. Start chatting with the AI agent - it will have context about your workspace!
+
+### CSV Upload Format
+
+Your CSV file should have columns for `name` and `email`. Example:
+
+```csv
+name,email
+John Doe,john@example.com
+Jane Smith,jane@example.com
+```
+
+The CSV parser is flexible and will automatically detect columns named:
+- Email: `email`, `e-mail`, `email address`
+- Name: `name`, `full name`, `fullname`

@@ -19,8 +19,8 @@ GOOGLE_GENERATIVE_AI_API_KEY=your_google_api_key_here
 # Generate a secret for authentication
 AUTH_SECRET=$(openssl rand -base64 32)
 
-# Database and Storage (Get from Vercel)
-POSTGRES_URL=your_postgres_connection_string
+# Database and Storage (Get from Vercel or Supabase)
+DATABASE_URL=your_postgres_connection_string
 BLOB_READ_WRITE_TOKEN=your_blob_storage_token
 ```
 

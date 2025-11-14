@@ -4,6 +4,7 @@ import { UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useState } from "react";
 import { MessageSquare, Calendar } from "lucide-react";
+import { parseAsString, useQueryState } from "nuqs";
 
 import {
   Conversation,
@@ -53,9 +54,11 @@ export function Chat({
   id: string;
   initialMessages: Array<UIMessage>;
 }) {
+  const [workspaceId] = useQueryState("workspace", parseAsString);
+  
   const { messages, sendMessage, status, stop } = useChat({
     id,
-    body: { id },
+    body: { id, workspaceId: workspaceId || undefined },
     initialMessages,
     onFinish: () => {
       window.history.replaceState({}, "", `/chat/${id}`);

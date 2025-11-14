@@ -7,6 +7,11 @@ import {
 import { put } from "@vercel/blob";
 import { google } from "@ai-sdk/google";
 import { GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
+import { auth } from "@/app/(auth)/auth";
+import {
+  getWorkspaceById,
+  getWorkspaceMembers,
+} from "@/db/queries";
 
 import { geminiModel, geminiImageModel } from "@/ai";
 
@@ -52,7 +57,12 @@ const extractUrls = (text: string): string[] => {
 };
 
 export async function POST(request: Request) {
-  const { id, messages }: { id: string; messages: Array<Message> } =
+  const session = await auth();
+  if (!session?.user?.id) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const { id, messages, workspaceId }: { id: string; messages: Array<Message>; workspaceId?: string } =
     await request.json();
 
   const coreMessages = convertToCoreMessages(messages).filter(
@@ -159,6 +169,34 @@ export async function POST(request: Request) {
 
   const model = geminiModel;
 
+  // Get workspace context if workspaceId is provided
+  let workspaceContext = "";
+  if (workspaceId) {
+    try {
+      const workspace = await getWorkspaceById(workspaceId);
+      if (workspace && workspace.ownerId === session.user.id) {
+        const members = await getWorkspaceMembers(workspaceId);
+        const memberSample = members.slice(0, 10).map((m) => ({
+          name: m.name || "Unknown",
+          email: m.email,
+        }));
+
+        workspaceContext = `\n\n**Current Workspace Context:**
+You are managing the "${workspace.name}" community${workspace.description ? `: ${workspace.description}` : ""}.
+
+**Community Members:** This workspace has ${members.length} registered members.`;
+        
+        if (memberSample.length > 0) {
+          workspaceContext += ` Here are some of the community members:\n${memberSample.map((m, i) => `${i + 1}. ${m.name} (${m.email})`).join("\n")}`;
+        }
+
+        workspaceContext += `\n\nWhen providing advice, consider this specific community's context, size, and member base. Personalize your recommendations to fit "${workspace.name}" community's needs.`;
+      }
+    } catch (error) {
+      console.error("Failed to load workspace context:", error);
+    }
+  }
+
   let systemPrompt = `You are an expert Tech Community Manager AI Assistant, specialized in helping DevRel professionals and community managers build, grow, and engage thriving tech communities.
 
 Your expertise includes:
@@ -198,7 +236,7 @@ Your expertise includes:
 - You help create inclusive, welcoming communities that value diversity
 - You balance community needs with business objectives
 
-Always be helpful, empathetic, and action-oriented. Provide specific, practical advice that community managers can implement immediately.`;
+Always be helpful, empathetic, and action-oriented. Provide specific, practical advice that community managers can implement immediately.${workspaceContext}`;
 
   if (imageUrl) {
     systemPrompt += `\n\nAn image has been generated based on the user's request. Share this URL in your response so the user can see it: ${imageUrl}

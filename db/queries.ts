@@ -237,20 +237,43 @@ export async function upsertWorkspaceMembers(
     const insertedMembers: WorkspaceMember[] = [];
 
     for (const member of members) {
-      const [upserted] = await db
-        .insert(workspaceMember)
-        .values({
-          workspaceId,
-          name: member.name || null,
-          email: member.email,
-          metadata: member.metadata || null,
-          updatedAt: new Date(),
-        })
-        .onConflictDoNothing()
-        .returning();
+      // Check if member already exists
+      const existing = await db
+        .select()
+        .from(workspaceMember)
+        .where(
+          and(
+            eq(workspaceMember.workspaceId, workspaceId),
+            eq(workspaceMember.email, member.email),
+          ),
+        )
+        .limit(1);
 
-      if (upserted) {
-        insertedMembers.push(upserted);
+      if (existing.length > 0) {
+        // Update existing member
+        const [updated] = await db
+          .update(workspaceMember)
+          .set({
+            name: member.name || existing[0].name,
+            metadata: member.metadata || existing[0].metadata,
+            updatedAt: new Date(),
+          })
+          .where(eq(workspaceMember.id, existing[0].id))
+          .returning();
+        if (updated) insertedMembers.push(updated);
+      } else {
+        // Insert new member
+        const [inserted] = await db
+          .insert(workspaceMember)
+          .values({
+            workspaceId,
+            name: member.name || null,
+            email: member.email,
+            metadata: member.metadata || null,
+            updatedAt: new Date(),
+          })
+          .returning();
+        if (inserted) insertedMembers.push(inserted);
       }
     }
 

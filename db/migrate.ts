@@ -8,11 +8,18 @@ config({
 });
 
 const runMigrate = async () => {
-  if (!process.env.POSTGRES_URL) {
-    throw new Error("POSTGRES_URL is not defined");
+  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!dbUrl) {
+    throw new Error("DATABASE_URL or POSTGRES_URL must be defined");
   }
 
-  const connection = postgres(process.env.POSTGRES_URL, { max: 1 });
+  // Configure SSL for Supabase/PostgreSQL
+  const connection = postgres(dbUrl, {
+    max: 1,
+    ssl: "require",
+    connect_timeout: 60,
+    idle_timeout: 20,
+  });
   const db = drizzle(connection);
 
   console.log("⏳ Running migrations...");
