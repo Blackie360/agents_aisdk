@@ -11,6 +11,7 @@ import { auth } from "@/app/(auth)/auth";
 import {
   getWorkspaceById,
   getWorkspaceMembers,
+  getWorkspaceFiles,
 } from "@/db/queries";
 
 import { geminiModel, geminiImageModel } from "@/ai";
@@ -181,6 +182,9 @@ export async function POST(request: Request) {
           email: m.email,
         }));
 
+        // Fetch workspace files
+        const workspaceFiles = await getWorkspaceFiles(workspaceId);
+
         workspaceContext = `\n\n**Current Workspace Context:**
 You are managing the "${workspace.name}" community${workspace.description ? `: ${workspace.description}` : ""}.
 
@@ -190,7 +194,77 @@ You are managing the "${workspace.name}" community${workspace.description ? `: $
           workspaceContext += ` Here are some of the community members:\n${memberSample.map((m, i) => `${i + 1}. ${m.name} (${m.email})`).join("\n")}`;
         }
 
-        workspaceContext += `\n\nWhen providing advice, consider this specific community's context, size, and member base. Personalize your recommendations to fit "${workspace.name}" community's needs.`;
+        // Add workspace files context
+        if (workspaceFiles.length > 0) {
+          workspaceContext += `\n\n**Workspace Files & Documents:** This workspace has ${workspaceFiles.length} file(s) available for reference:`;
+          
+          // Group files by type
+          const textFiles = workspaceFiles.filter(f => 
+            f.mimeType?.startsWith("text/") || 
+            f.fileName.endsWith(".txt") || 
+            f.fileName.endsWith(".md") ||
+            f.fileName.endsWith(".json")
+          );
+          const pdfFiles = workspaceFiles.filter(f => 
+            f.mimeType === "application/pdf" || 
+            f.fileName.endsWith(".pdf")
+          );
+          const imageFiles = workspaceFiles.filter(f => 
+            f.mimeType?.startsWith("image/")
+          );
+          const otherFiles = workspaceFiles.filter(f => 
+            !textFiles.includes(f) && 
+            !pdfFiles.includes(f) && 
+            !imageFiles.includes(f)
+          );
+
+          if (textFiles.length > 0) {
+            workspaceContext += `\n\n* Text/Document Files (${textFiles.length}):`;
+            for (const file of textFiles.slice(0, 10)) {
+              workspaceContext += `\n  - ${file.fileName}${file.fileUrl ? ` (${file.fileUrl})` : ""}`;
+              // Try to fetch text content for small text files
+              if (file.fileUrl && file.fileSize && file.fileSize < 100000) {
+                try {
+                  const fileResponse = await fetch(file.fileUrl);
+                  if (fileResponse.ok) {
+                    const textContent = await fileResponse.text();
+                    if (textContent.length < 5000) {
+                      workspaceContext += `\n    Content preview: ${textContent.substring(0, 500)}${textContent.length > 500 ? "..." : ""}`;
+                    }
+                  }
+                } catch (error) {
+                  // Silently fail if file can't be fetched
+                }
+              }
+            }
+          }
+
+          if (pdfFiles.length > 0) {
+            workspaceContext += `\n\n* PDF Documents (${pdfFiles.length}):`;
+            for (const file of pdfFiles.slice(0, 10)) {
+              workspaceContext += `\n  - ${file.fileName}${file.fileUrl ? ` (${file.fileUrl})` : ""}`;
+            }
+            workspaceContext += `\n  Note: You can reference these PDFs by their URLs when providing advice.`;
+          }
+
+          if (imageFiles.length > 0) {
+            workspaceContext += `\n\n* Images (${imageFiles.length}):`;
+            for (const file of imageFiles.slice(0, 10)) {
+              workspaceContext += `\n  - ${file.fileName}${file.fileUrl ? ` (${file.fileUrl})` : ""}`;
+            }
+          }
+
+          if (otherFiles.length > 0) {
+            workspaceContext += `\n\n* Other Files (${otherFiles.length}):`;
+            for (const file of otherFiles.slice(0, 10)) {
+              workspaceContext += `\n  - ${file.fileName}${file.fileUrl ? ` (${file.fileUrl})` : ""}`;
+            }
+          }
+
+          workspaceContext += `\n\nWhen answering questions, you can reference these workspace files and their content to provide context-aware responses specific to this community.`;
+        }
+
+        workspaceContext += `\n\nWhen providing advice, consider this specific community's context, size, member base, and available files. Personalize your recommendations to fit "${workspace.name}" community's needs.`;
       }
     } catch (error) {
       console.error("Failed to load workspace context:", error);

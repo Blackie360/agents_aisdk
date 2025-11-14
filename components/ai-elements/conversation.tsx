@@ -55,10 +55,19 @@ export function ConversationContent({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   const { scrollAreaRef } = React.useContext(ConversationContext);
+  const contentRef = React.useRef<HTMLDivElement>(null);
+
+  // Expose content ref through context for scrolling
+  React.useEffect(() => {
+    if (scrollAreaRef.current && contentRef.current) {
+      // Store content ref for external access
+      (scrollAreaRef.current as any).contentRef = contentRef;
+    }
+  }, [scrollAreaRef]);
 
   return (
     <ScrollArea ref={scrollAreaRef} className={cn("flex-1", className)} {...props}>
-      <div className="flex flex-col gap-3 sm:gap-4">{children}</div>
+      <div ref={contentRef} className="flex flex-col gap-3 sm:gap-4">{children}</div>
     </ScrollArea>
   );
 }

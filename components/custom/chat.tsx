@@ -2,7 +2,7 @@
 
 import { UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MessageSquare, Calendar } from "lucide-react";
 import { parseAsString, useQueryState } from "nuqs";
 
@@ -70,6 +70,60 @@ export function Chat({
     Array<{ url: string; name: string; contentType: string }>
   >([]);
   const [showEventForm, setShowEventForm] = useState(false);
+  const conversationRef = useRef<HTMLDivElement>(null);
+
+  // Ensure first message is visible when messages are loaded
+  const prevMessagesLength = useRef(messages.length);
+  const hasScrolledToFirst = useRef(false);
+  
+  useEffect(() => {
+    if (messages.length > 0 && conversationRef.current && !hasScrolledToFirst.current) {
+      // Use multiple requestAnimationFrame calls to ensure DOM is fully updated
+      const scrollToFirst = () => {
+        const scrollArea = conversationRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+        if (scrollArea) {
+          // Find the first message element
+          const firstMessage = scrollArea.querySelector('[data-message-index="0"]') as HTMLElement;
+          if (firstMessage) {
+            // Get the content wrapper to calculate relative position
+            const contentWrapper = scrollArea.firstElementChild as HTMLElement;
+            if (contentWrapper) {
+              // Calculate position relative to content wrapper
+              const messageRect = firstMessage.getBoundingClientRect();
+              const wrapperRect = contentWrapper.getBoundingClientRect();
+              const relativeTop = messageRect.top - wrapperRect.top + scrollArea.scrollTop;
+              
+              // Scroll to show the first message at the top with padding
+              scrollArea.scrollTop = Math.max(0, relativeTop - 16);
+              hasScrolledToFirst.current = true;
+            } else {
+              // Fallback: scroll to top
+              scrollArea.scrollTop = 0;
+              hasScrolledToFirst.current = true;
+            }
+          } else {
+            // Fallback: ensure we're at the top
+            scrollArea.scrollTop = 0;
+            hasScrolledToFirst.current = true;
+          }
+        }
+      };
+      
+      // Wait for DOM to be ready
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(scrollToFirst, 50);
+        });
+      });
+    }
+    
+    // Reset flag if messages are cleared
+    if (messages.length === 0) {
+      hasScrolledToFirst.current = false;
+    }
+    
+    prevMessagesLength.current = messages.length;
+  }, [messages.length]);
 
   const handleSubmit = async (message: { text?: string; files?: Array<{ url: string; name: string; contentType: string }> }) => {
     if (input.trim() || attachments.length > 0) {
@@ -131,7 +185,7 @@ Based on these details, please provide me with a comprehensive event plan coveri
 
   return (
     <div className="flex flex-col h-dvh bg-background">
-      <Conversation className="flex-1 relative">
+      <Conversation ref={conversationRef} className="flex-1 relative">
         <ConversationContent className="p-2 sm:p-4 md:p-6">
           {showEventForm ? (
             <div className="flex items-center justify-center min-h-full py-8">
@@ -166,9 +220,16 @@ Based on these details, please provide me with a comprehensive event plan coveri
                 const imageUrls = extractImageUrls(content);
                 const textWithoutImages = removeImageUrls(content);
 
+                const isFirstMessage = messages.indexOf(message) === 0;
                 return (
-                  <Message key={message.id} from={message.role as "user" | "assistant"}>
-                    <MessageContent>
+                  <div 
+                    key={message.id} 
+                    data-message 
+                    data-message-index={messages.indexOf(message)}
+                    className={isFirstMessage ? "pt-4 sm:pt-6 md:pt-8" : ""}
+                  >
+                    <Message from={message.role as "user" | "assistant"}>
+                      <MessageContent>
                       {textWithoutImages && <Response>{textWithoutImages}</Response>}
                       {imageUrls.length > 0 && (
                         <div className="flex flex-col gap-3 mt-3">
@@ -212,8 +273,9 @@ Based on these details, please provide me with a comprehensive event plan coveri
                           ))}
                         </div>
                       )}
-                    </MessageContent>
-                  </Message>
+                      </MessageContent>
+                    </Message>
+                  </div>
                 );
               })
           )}
