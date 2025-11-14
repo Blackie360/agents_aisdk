@@ -42,12 +42,18 @@ Your app will be running at [http://localhost:3000](http://localhost:3000)
 
 ## ✨ Key Features You Can Try Immediately
 
+### Event Planning (NEW: Guided Form! ✨)
+- Click the **"Plan an Event (Guided Form)"** button on the home screen
+- Fill out the 5-step interactive form
+- Get a comprehensive event plan instantly
+- No more back-and-forth questions!
+
 ### Community Strategy
 ```
 "Help me create a 6-month community growth strategy for our developer platform"
 ```
 
-### Event Planning
+### Event Planning (Chat Method)
 ```
 "Create a comprehensive plan for a 48-hour virtual hackathon"
 ```

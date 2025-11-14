@@ -75,7 +75,7 @@ export const Overview = () => {
             <div className="text-[10px] sm:text-xs text-muted-foreground space-y-1 text-center">
               <p>• "Create a 3-month community growth strategy"</p>
               <p>• "What are the latest DevRel trends for 2025?"</p>
-              <p>• "Help me plan a virtual hackathon"</p>
+              <p>• Or use the <span className="font-semibold text-primary">Event Planner</span> form below</p>
             </div>
           </div>
         </CardContent>

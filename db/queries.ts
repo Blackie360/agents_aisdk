@@ -1,17 +1,21 @@
 import "server-only";
 
 import { genSaltSync, hashSync } from "bcrypt-ts";
-import { desc, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { desc, eq, and, sql } from "drizzle-orm";
 
-import { user, chat, User } from "./schema";
-
-// Optionally, if not using email/pass login, you can
-// use the Drizzle adapter for Auth.js / NextAuth
-// https://authjs.dev/reference/adapter/drizzle
-let client = postgres(`${process.env.POSTGRES_URL!}?sslmode=require`);
-let db = drizzle(client);
+import { db } from "./index";
+import {
+  user,
+  chat,
+  workspace,
+  workspaceMember,
+  workspaceFile,
+  User,
+  Workspace,
+  WorkspaceMember,
+  NewWorkspace,
+  NewWorkspaceMember,
+} from "./schema";
 
 export async function getUser(email: string): Promise<Array<User>> {
   try {
@@ -95,6 +99,220 @@ export async function getChatById({ id }: { id: string }) {
     return selectedChat;
   } catch (error) {
     console.error("Failed to get chat by id from database");
+    throw error;
+  }
+}
+
+// Workspace queries
+export async function getUserWorkspaces(userId: string): Promise<Workspace[]> {
+  try {
+    return await db
+      .select()
+      .from(workspace)
+      .where(eq(workspace.ownerId, userId))
+      .orderBy(desc(workspace.createdAt));
+  } catch (error) {
+    console.error("Failed to get user workspaces from database");
+    throw error;
+  }
+}
+
+export async function getWorkspaceById(id: string): Promise<Workspace | null> {
+  try {
+    const [selectedWorkspace] = await db
+      .select()
+      .from(workspace)
+      .where(eq(workspace.id, id));
+    return selectedWorkspace || null;
+  } catch (error) {
+    console.error("Failed to get workspace by id from database");
+    throw error;
+  }
+}
+
+export async function getWorkspaceBySlug(
+  slug: string,
+): Promise<Workspace | null> {
+  try {
+    const [selectedWorkspace] = await db
+      .select()
+      .from(workspace)
+      .where(eq(workspace.slug, slug));
+    return selectedWorkspace || null;
+  } catch (error) {
+    console.error("Failed to get workspace by slug from database");
+    throw error;
+  }
+}
+
+export async function createWorkspace(
+  data: NewWorkspace,
+): Promise<Workspace> {
+  try {
+    const [newWorkspace] = await db
+      .insert(workspace)
+      .values({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return newWorkspace;
+  } catch (error) {
+    console.error("Failed to create workspace in database");
+    throw error;
+  }
+}
+
+export async function updateWorkspace(
+  id: string,
+  userId: string,
+  data: Partial<Omit<NewWorkspace, "id" | "ownerId">>,
+): Promise<Workspace | null> {
+  try {
+    const [updatedWorkspace] = await db
+      .update(workspace)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(workspace.id, id), eq(workspace.ownerId, userId)))
+      .returning();
+    return updatedWorkspace || null;
+  } catch (error) {
+    console.error("Failed to update workspace in database");
+    throw error;
+  }
+}
+
+export async function deleteWorkspace(
+  id: string,
+  userId: string,
+): Promise<boolean> {
+  try {
+    const result = await db
+      .delete(workspace)
+      .where(and(eq(workspace.id, id), eq(workspace.ownerId, userId)));
+    return true;
+  } catch (error) {
+    console.error("Failed to delete workspace from database");
+    throw error;
+  }
+}
+
+export async function getWorkspaceMembers(
+  workspaceId: string,
+): Promise<WorkspaceMember[]> {
+  try {
+    return await db
+      .select()
+      .from(workspaceMember)
+      .where(eq(workspaceMember.workspaceId, workspaceId))
+      .orderBy(desc(workspaceMember.createdAt));
+  } catch (error) {
+    console.error("Failed to get workspace members from database");
+    throw error;
+  }
+}
+
+export async function getWorkspaceMemberCount(
+  workspaceId: string,
+): Promise<number> {
+  try {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(workspaceMember)
+      .where(eq(workspaceMember.workspaceId, workspaceId));
+    return Number(result[0]?.count || 0);
+  } catch (error) {
+    console.error("Failed to get workspace member count from database");
+    throw error;
+  }
+}
+
+export async function upsertWorkspaceMembers(
+  workspaceId: string,
+  members: Array<{ name?: string; email: string; metadata?: any }>,
+): Promise<WorkspaceMember[]> {
+  try {
+    const insertedMembers: WorkspaceMember[] = [];
+
+    for (const member of members) {
+      const [upserted] = await db
+        .insert(workspaceMember)
+        .values({
+          workspaceId,
+          name: member.name || null,
+          email: member.email,
+          metadata: member.metadata || null,
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing()
+        .returning();
+
+      if (upserted) {
+        insertedMembers.push(upserted);
+      }
+    }
+
+    return insertedMembers;
+  } catch (error) {
+    console.error("Failed to upsert workspace members in database");
+    throw error;
+  }
+}
+
+export async function deleteWorkspaceMember(
+  id: string,
+  workspaceId: string,
+): Promise<boolean> {
+  try {
+    await db
+      .delete(workspaceMember)
+      .where(
+        and(
+          eq(workspaceMember.id, id),
+          eq(workspaceMember.workspaceId, workspaceId),
+        ),
+      );
+    return true;
+  } catch (error) {
+    console.error("Failed to delete workspace member from database");
+    throw error;
+  }
+}
+
+export async function createWorkspaceFile(
+  data: {
+    workspaceId: string;
+    fileName: string;
+    fileUrl?: string;
+    fileSize?: number;
+    mimeType?: string;
+    checksum?: string;
+    uploadedBy: string;
+  },
+) {
+  try {
+    const [newFile] = await db
+      .insert(workspaceFile)
+      .values(data)
+      .returning();
+    return newFile;
+  } catch (error) {
+    console.error("Failed to create workspace file in database");
+    throw error;
+  }
+}
+
+export async function getWorkspaceFiles(workspaceId: string) {
+  try {
+    return await db
+      .select()
+      .from(workspaceFile)
+      .where(eq(workspaceFile.workspaceId, workspaceId))
+      .orderBy(desc(workspaceFile.createdAt));
+  } catch (error) {
+    console.error("Failed to get workspace files from database");
     throw error;
   }
 }

@@ -49,6 +49,12 @@ This specialized AI assistant helps DevRel professionals and community managers 
 - Research upcoming conferences and events
 - Discover new community tools and platforms
 
+### Guided Forms (New! ✨)
+- **Event Planner Form**: Interactive 5-step form for comprehensive event planning
+- Structured input collection for complex tasks
+- No more back-and-forth - provide all details at once
+- Generate complete, actionable plans instantly
+
 ## Features
 
 - [Next.js](https://nextjs.org) App Router
@@ -109,7 +115,14 @@ Here are some ways you can use the Tech Community Manager AI:
 
 The agent will automatically search the web to provide you with the most current and relevant information.
 
+**Event Planning (Using Guided Form)**
+- Click the "Plan an Event (Guided Form)" button
+- Fill out the 5-step form with your event details
+- Get a comprehensive event plan instantly
+
 📝 **For more detailed examples and use cases, see [COMMUNITY_MANAGER_PROMPTS.md](./COMMUNITY_MANAGER_PROMPTS.md)**
+
+✨ **Learn about the new Guided Forms feature: [GUIDED_FORMS.md](./GUIDED_FORMS.md)**
 
 ## Deploy Your Own
 

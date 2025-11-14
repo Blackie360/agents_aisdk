@@ -60,7 +60,18 @@ export const register = async (
       password: formData.get("password"),
     });
 
-    // No database - just sign in directly
+    const { getUser, createUser } = await import("@/db/queries");
+
+    // Check if user already exists
+    const existingUsers = await getUser(validatedData.email);
+    if (existingUsers.length > 0) {
+      return { status: "user_exists" };
+    }
+
+    // Create new user
+    await createUser(validatedData.email, validatedData.password);
+
+    // Sign in the new user
     await signIn("credentials", {
       email: validatedData.email,
       password: validatedData.password,

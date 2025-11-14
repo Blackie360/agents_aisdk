@@ -3,7 +3,7 @@
 import { UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useState } from "react";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Calendar } from "lucide-react";
 
 import {
   Conversation,
@@ -22,6 +22,8 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { PreviewAttachment } from "./preview-attachment";
 import { Overview } from "./overview";
+import { EventPlannerForm } from "./event-planner-form";
+import { Button } from "../ui/button";
 
 function extractImageUrls(text: string): string[] {
   const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s<>"{}|\\^`\[\]]*)?/gi;
@@ -65,6 +67,7 @@ export function Chat({
   const [attachments, setAttachments] = useState<
     Array<{ url: string; name: string; contentType: string }>
   >([]);
+  const [showEventForm, setShowEventForm] = useState(false);
 
   const handleSubmit = async (message: { text?: string; files?: Array<{ url: string; name: string; contentType: string }> }) => {
     if (input.trim() || attachments.length > 0) {
@@ -77,11 +80,65 @@ export function Chat({
     }
   };
 
+  const handleEventFormSubmit = async (formData: any) => {
+    const prompt = `
+Help me plan a tech community event with the following details:
+
+**Event Goal/Purpose:**
+${formData.goal}
+
+**Target Audience:**
+${formData.audience}
+
+**Core Topic/Theme:**
+${formData.topic}
+
+**Event Format:**
+${formData.format}
+
+**Platform/Venue:**
+${formData.platform}
+
+**Timeframe/Duration:**
+${formData.timeframe}
+
+**Budget:**
+${formData.budget}
+
+**Available Resources/Team:**
+${formData.resources}
+
+**Success Metrics:**
+${formData.successMetrics}
+
+Based on these details, please provide me with a comprehensive event plan covering:
+* Event Concept & Objectives
+* Target Audience Analysis
+* Content & Speaker Strategy
+* Marketing & Promotion Plan
+* Logistics & Platform/Venue Setup
+* Community Engagement Activities (pre, during, post-event)
+* Budget Considerations
+* Success Metrics & Reporting
+* Timeline/Milestones
+`.trim();
+
+    await sendMessage({ text: prompt });
+    setShowEventForm(false);
+  };
+
   return (
     <div className="flex flex-col h-dvh bg-background">
       <Conversation className="flex-1 relative">
         <ConversationContent className="p-2 sm:p-4 md:p-6">
-          {messages.length === 0 ? (
+          {showEventForm ? (
+            <div className="flex items-center justify-center min-h-full py-8">
+              <EventPlannerForm
+                onSubmit={handleEventFormSubmit}
+                onCancel={() => setShowEventForm(false)}
+              />
+            </div>
+          ) : messages.length === 0 ? (
             <ConversationEmptyState
               icon={<MessageSquare className="size-10 sm:size-12 text-primary" />}
               title="Welcome to Tech Community Manager AI"
@@ -164,7 +221,21 @@ export function Chat({
 
       <div className="border-t p-2 sm:p-4 bg-background">
         <div className="max-w-full sm:max-w-2xl md:max-w-4xl mx-auto px-2 sm:px-0">
-          {messages.length === 0 && <div className="mb-3 sm:mb-4"><Overview /></div>}
+          {messages.length === 0 && !showEventForm && (
+            <>
+              <div className="mb-3 sm:mb-4"><Overview /></div>
+              <div className="mb-3">
+                <Button
+                  onClick={() => setShowEventForm(true)}
+                  variant="outline"
+                  className="w-full gap-2 border-dashed border-2 hover:border-primary hover:bg-primary/5 transition-all"
+                >
+                  <Calendar className="size-4" />
+                  Plan an Event (Guided Form)
+                </Button>
+              </div>
+            </>
+          )}
           {attachments.length > 0 && (
             <div className="flex gap-2 mb-2 overflow-x-auto pb-2">
               {attachments.map((attachment) => (
@@ -172,7 +243,7 @@ export function Chat({
               ))}
             </div>
           )}
-          <PromptInput onSubmit={handleSubmit}>
+          {!showEventForm && <PromptInput onSubmit={handleSubmit}>
             <div className="relative">
               <PromptInputTextarea
                 value={input}
@@ -228,7 +299,7 @@ export function Chat({
                 />
               </div>
             </div>
-          </PromptInput>
+          </PromptInput>}
         </div>
       </div>
     </div>
