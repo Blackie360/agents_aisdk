@@ -53,7 +53,7 @@
     "lucide-react": "^0.446.0",
     "motion": "^12.23.24",
     "nanoid": "^5.1.6",
-    "next": "15.0.0-canary.152",
+    "next": "15.6.0-canary.58",
     "next-auth": "5.0.0-beta.22",
     "next-themes": "^0.3.0",
     "nuqs": "^2.7.3",
