@@ -5,7 +5,6 @@ import { SchemaInput } from '@/components/schema/schema-input';
 import { DiagramCanvas } from '@/components/schema/diagram-canvas';
 import { TableDetailsDrawer } from '@/components/schema/table-details-drawer';
 import { AIExplanationPanel } from '@/components/schema/ai-explanation-panel';
-import { parseSchemaWithExplanation } from '@/lib/services/schema-parser';
 import { generateDiagram } from '@/lib/services/diagram-generator';
 import { Table } from '@/lib/types/schema';
 import { Node, Edge } from '@xyflow/react';
@@ -17,26 +16,70 @@ export default function HomePage() {
   const [explanation, setExplanation] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
 
-  const handleGenerate = async (input: string, type: 'prisma' | 'sql' | 'connection') => {
+  const handleGenerate = async (input: string) => {
     setIsLoading(true);
     setIsStreaming(true);
     setExplanation('');
     setSelectedTable(null);
     
     try {
-      // Parse schema and stream explanation in one API call
-      let fullExplanation = '';
-      const schema = await parseSchemaWithExplanation(input, type, (chunk) => {
-        fullExplanation += chunk;
-        setExplanation(fullExplanation);
+      // Parse schema with auto-detection
+      const response = await fetch('/api/schema-visualizer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ schema: input }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to parse schema');
+      }
+
+      const data = await response.json();
       
+      if (!data.success || !data.schema) {
+        throw new Error(data.message || 'Failed to parse schema');
+      }
+
       // Generate diagram from parsed schema
-      const diagramData = generateDiagram(schema);
+      const diagramData = generateDiagram(data.schema);
       setDiagram({
         nodes: diagramData.nodes as unknown as Node[],
         edges: diagramData.edges as unknown as Edge[],
       });
+
+      // Stream AI explanation
+      const explanationResponse = await fetch('/api/schema-explanation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ schema: data.schema }),
+      });
+
+      if (explanationResponse.ok && explanationResponse.body) {
+        const reader = explanationResponse.body.getReader();
+        const decoder = new TextDecoder();
+        let fullExplanation = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('0:')) {
+              const text = line.substring(2).replace(/^"(.+)"$/, '$1');
+              fullExplanation += text;
+              setExplanation(fullExplanation);
+            }
+          }
+        }
+      }
       
       setIsStreaming(false);
     } catch (error) {
