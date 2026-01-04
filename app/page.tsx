@@ -5,9 +5,8 @@ import { SchemaInput } from '@/components/schema/schema-input';
 import { DiagramCanvas } from '@/components/schema/diagram-canvas';
 import { TableDetailsDrawer } from '@/components/schema/table-details-drawer';
 import { AIExplanationPanel } from '@/components/schema/ai-explanation-panel';
-import { parseSchema } from '@/lib/services/schema-parser';
+import { parseSchemaWithExplanation } from '@/lib/services/schema-parser';
 import { generateDiagram } from '@/lib/services/diagram-generator';
-import { explainSchema } from '@/lib/services/ai-explainer';
 import { Table } from '@/lib/types/schema';
 import { Node, Edge } from '@xyflow/react';
 
@@ -25,23 +24,24 @@ export default function HomePage() {
     setSelectedTable(null);
     
     try {
-      const schema = await parseSchema(input, type);
-      const diagramData = generateDiagram(schema);
-      setDiagram({
-        nodes: diagramData.nodes as Node[],
-        edges: diagramData.edges as Edge[],
-      });
-      
-      // Generate AI explanation
+      // Parse schema and stream explanation in one API call
       let fullExplanation = '';
-      for await (const chunk of explainSchema(schema)) {
+      const schema = await parseSchemaWithExplanation(input, type, (chunk) => {
         fullExplanation += chunk;
         setExplanation(fullExplanation);
-      }
+      });
+      
+      // Generate diagram from parsed schema
+      const diagramData = generateDiagram(schema);
+      setDiagram({
+        nodes: diagramData.nodes as unknown as Node[],
+        edges: diagramData.edges as unknown as Edge[],
+      });
+      
       setIsStreaming(false);
     } catch (error) {
       console.error('Failed to generate diagram:', error);
-      setExplanation('Error generating diagram. Please check your schema format.');
+      setExplanation(`Error: ${error instanceof Error ? error.message : 'Failed to generate diagram. Please check your schema format.'}`);
       setIsStreaming(false);
     } finally {
       setIsLoading(false);

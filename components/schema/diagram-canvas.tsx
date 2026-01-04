@@ -39,7 +39,7 @@ export function DiagramCanvas({ nodes: initialNodes, edges: initialEdges, onNode
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeClick={(_, node) => onNodeClick(node.data as Table)}
+        onNodeClick={(_, node) => onNodeClick(node.data as unknown as Table)}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}

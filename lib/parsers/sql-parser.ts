@@ -33,16 +33,30 @@ export function parseSQLToSchema(content: string, dialect: 'postgresql' | 'mysql
             };
 
             // Check constraints
-            col.constraints?.forEach((constraint) => {
+            col.constraints?.forEach((constraint: any) => {
               if (constraint.type === 'primary key') {
                 column.primaryKey = true;
               }
               if (constraint.type === 'unique') {
                 column.unique = true;
               }
-              if (constraint.type === 'foreign key') {
+              // Handle both 'foreign key' (table-level) and 'reference' (inline) constraints
+              if (constraint.type === 'foreign key' || constraint.type === 'reference') {
                 const fk = constraint as any;
-                if (fk.references?.table?.name && fk.references?.columns?.[0]?.name) {
+                // For inline REFERENCES (type='reference')
+                if (fk.foreignTable?.name && fk.foreignColumns?.[0]?.name) {
+                  column.foreignKey = {
+                    table: fk.foreignTable.name,
+                    column: fk.foreignColumns[0].name,
+                  };
+                  foreignKeys.push({
+                    column: col.name?.name || '',
+                    targetTable: fk.foreignTable.name,
+                    targetColumn: fk.foreignColumns[0].name,
+                  });
+                }
+                // For table-level FOREIGN KEY constraints
+                else if (fk.references?.table?.name && fk.references?.columns?.[0]?.name) {
                   column.foreignKey = {
                     table: fk.references.table.name,
                     column: fk.references.columns[0].name,
@@ -57,7 +71,7 @@ export function parseSQLToSchema(content: string, dialect: 'postgresql' | 'mysql
             });
 
             // Check for indexes in table constraints
-            createTable.constraints?.forEach((constraint) => {
+            createTable.constraints?.forEach((constraint: any) => {
               if (constraint.type === 'primary key') {
                 const pk = constraint as any;
                 if (pk.columns?.some((c: any) => c.name === (col.name?.name || ''))) {
@@ -70,14 +84,30 @@ export function parseSQLToSchema(content: string, dialect: 'postgresql' | 'mysql
                   column.unique = true;
                 }
               }
-              if (constraint.type === 'foreign key') {
+              // Handle both 'foreign key' (table-level) and 'reference' (inline) constraints
+              if (constraint.type === 'foreign key' || constraint.type === 'reference') {
                 const fk = constraint as any;
-                if (fk.columns?.some((c: any) => c.name === (col.name?.name || ''))) {
-                  column.foreignKey = {
-                    table: fk.references?.table?.name || '',
-                    column: fk.references?.columns?.[0]?.name || '',
-                  };
-                  if (fk.references?.table?.name && fk.references?.columns?.[0]?.name) {
+                const columnMatches = fk.columns?.some((c: any) => c.name === (col.name?.name || ''));
+                
+                if (columnMatches) {
+                  // For inline REFERENCES (type='reference')
+                  if (fk.foreignTable?.name && fk.foreignColumns?.[0]?.name) {
+                    column.foreignKey = {
+                      table: fk.foreignTable.name,
+                      column: fk.foreignColumns[0].name,
+                    };
+                    foreignKeys.push({
+                      column: col.name?.name || '',
+                      targetTable: fk.foreignTable.name,
+                      targetColumn: fk.foreignColumns[0].name,
+                    });
+                  }
+                  // For table-level FOREIGN KEY constraints
+                  else if (fk.references?.table?.name && fk.references?.columns?.[0]?.name) {
+                    column.foreignKey = {
+                      table: fk.references?.table?.name || '',
+                      column: fk.references?.columns?.[0]?.name || '',
+                    };
                     foreignKeys.push({
                       column: col.name?.name || '',
                       targetTable: fk.references.table.name,

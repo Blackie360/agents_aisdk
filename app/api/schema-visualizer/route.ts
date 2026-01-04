@@ -1,6 +1,5 @@
-import { streamText, tool } from 'ai';
-import { geminiModel } from '@/ai';
-import { z } from 'zod';
+import 'server-only';
+
 import { parsePrismaToSchema } from '@/lib/parsers/prisma-parser';
 import { parseSQLToSchema } from '@/lib/parsers/sql-parser';
 import { generateDiagram as generateDiagramData } from '@/lib/services/diagram-generator';
@@ -14,199 +13,43 @@ export const maxDuration = 60;
 
 /**
  * Detect schema type from content
- * Analyzes the input to determine if it's Prisma, PostgreSQL, MySQL, etc.
+ * Deterministic detection without AI
  */
-const detectSchemaType = tool({
-  description: 'Automatically detect the type of database schema from content. Analyze keywords and patterns to determine if it is Prisma, PostgreSQL, MySQL, SQLite, or unknown.',
-  parameters: z.object({
-    schemaContent: z.string().describe('The schema text to analyze'),
-  }),
-  execute: async ({ schemaContent }: { schemaContent: string }) => {
-    const content = schemaContent.trim().toLowerCase();
+function detectSchemaType(schemaContent: string): { type: string; dialect?: string } {
+  const content = schemaContent.trim().toLowerCase();
 
-    // Check for Prisma schema patterns
-    if (content.includes('datasource') || content.includes('model ') || content.includes('enum ')) {
-      return { type: 'prisma', confidence: 'high' };
+  // Check for SQL patterns FIRST (more explicit patterns)
+  if (content.includes('create table') || content.includes('alter table') || content.includes('drop table')) {
+    // Detect MySQL-specific syntax
+    if (content.includes('auto_increment') || content.includes('engine=')) {
+      return { type: 'sql', dialect: 'mysql' };
     }
+    // Default to PostgreSQL
+    return { type: 'sql', dialect: 'postgresql' };
+  }
 
-    // Check for SQL patterns
-    if (content.includes('create table') || content.includes('alter table')) {
-      // Detect PostgreSQL-specific syntax
-      if (content.includes('serial') || content.includes('uuid') || content.includes('text[]')) {
-        return { type: 'postgresql', confidence: 'high' };
-      }
-      // Detect MySQL-specific syntax
-      if (content.includes('auto_increment') || content.includes('engine=')) {
-        return { type: 'mysql', confidence: 'high' };
-      }
-      // Generic SQL
-      return { type: 'postgresql', confidence: 'medium' }; // Default to PostgreSQL
-    }
+  // Check for Prisma schema patterns (must have specific Prisma syntax at start of lines)
+  // Use regex to check for "model" keyword at the start of a line (after whitespace)
+  if (
+    /^\s*datasource\s+/m.test(content) ||
+    /^\s*generator\s+/m.test(content) ||
+    /^\s*model\s+\w+\s*{/m.test(content) ||
+    /^\s*enum\s+\w+\s*{/m.test(content)
+  ) {
+    return { type: 'prisma' };
+  }
 
-    // Check for SQLite patterns
-    if (content.includes('integer primary key') || content.includes('sqlite')) {
-      return { type: 'sqlite', confidence: 'medium' };
-    }
+  // Check for SQLite patterns
+  if (content.includes('integer primary key') || content.includes('sqlite')) {
+    return { type: 'sql', dialect: 'postgresql' }; // Treat as PostgreSQL for now
+  }
 
-    return { type: 'unknown', confidence: 'low' };
-  },
-});
-
-/**
- * Parse Prisma schema into structured format
- * Extracts models, fields, relations, and constraints
- */
-const parsePrismaSchema = tool({
-  description: 'Parse Prisma schema content into structured format with tables, columns, relationships, and constraints. Returns a complete schema object.',
-  parameters: z.object({
-    schemaContent: z.string().describe('Prisma schema content to parse'),
-  }),
-  execute: async ({ schemaContent }: { schemaContent: string }) => {
-    try {
-      const schema = parsePrismaToSchema(schemaContent);
-      return {
-        success: true,
-        schema: {
-          tables: schema.tables,
-          relationships: schema.relationships,
-          metadata: schema.metadata,
-        },
-        summary: `Parsed ${schema.tables.length} tables with ${schema.relationships.length} relationships`,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  },
-});
-
-/**
- * Parse SQL schema into structured format
- * Supports PostgreSQL and MySQL dialects
- */
-const parseSQLSchema = tool({
-  description: 'Parse SQL schema (PostgreSQL or MySQL) into structured format with tables, columns, constraints, foreign keys, and indexes.',
-  parameters: z.object({
-    schemaContent: z.string().describe('SQL schema content to parse'),
-    dialect: z.enum(['postgresql', 'mysql']).default('postgresql').describe('SQL dialect (postgresql or mysql)'),
-  }),
-  execute: async ({ schemaContent, dialect }: { schemaContent: string; dialect: 'postgresql' | 'mysql' }) => {
-    try {
-      const schema = parseSQLToSchema(schemaContent, dialect);
-      return {
-        success: true,
-        schema: {
-          tables: schema.tables,
-          relationships: schema.relationships,
-          metadata: schema.metadata,
-        },
-        summary: `Parsed ${schema.tables.length} tables with ${schema.relationships.length} relationships`,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  },
-});
-
-/**
- * Generate ER diagram nodes and edges from parsed schema
- * Creates visualization data with auto-layout positioning
- */
-const generateDiagram = tool({
-  description: 'Generate ER diagram nodes and edges from parsed schema. Calculates positions for tables and creates edges for relationships.',
-  parameters: z.object({
-    schema: z.object({
-      tables: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          columns: z.array(z.any()),
-        })
-      ),
-      relationships: z.array(
-        z.object({
-          id: z.string(),
-          from: z.object({ table: z.string(), column: z.string() }),
-          to: z.object({ table: z.string(), column: z.string() }),
-          type: z.string(),
-        })
-      ),
-      metadata: z.object({ database: z.string().optional(), version: z.string().optional() }).optional(),
-    }).describe('Parsed schema structure'),
-  }),
-  execute: async ({ schema }: { schema: any }) => {
-    try {
-      const schemaObj: Schema = {
-        tables: schema.tables.map((t) => ({
-          id: t.id,
-          name: t.name,
-          columns: t.columns,
-        })),
-        relationships: schema.relationships.map((r) => ({
-          id: r.id,
-          from: r.from,
-          to: r.to,
-          type: r.type as 'one-to-one' | 'one-to-many' | 'many-to-many',
-        })),
-        metadata: schema.metadata,
-      };
-
-      const diagram = generateDiagramData(schemaObj);
-      return {
-        success: true,
-        diagram: {
-          nodes: diagram.nodes,
-          edges: diagram.edges,
-        },
-        summary: `Generated diagram with ${diagram.nodes.length} nodes and ${diagram.edges.length} edges`,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  },
-});
-
-/**
- * Format final response with schema, diagram, and summary
- * Combines all parsed data into a complete response
- */
-const formatFinalResponse = tool({
-  description: 'Format the final structured response with schema, diagram, and summary. This is the last step before returning results to the user.',
-  parameters: z.object({
-    schema: z.any().describe('Parsed schema object'),
-    diagram: z.any().describe('Generated diagram with nodes and edges'),
-    summary: z.string().optional().describe('Summary of the analysis'),
-  }),
-  execute: async ({ schema, diagram, summary }: { schema: any; diagram: any; summary?: string }) => {
-    return {
-      success: true,
-      result: {
-        schema: {
-          tables: schema.tables || [],
-          relationships: schema.relationships || [],
-          metadata: schema.metadata,
-        },
-        diagram: {
-          nodes: diagram.nodes || [],
-          edges: diagram.edges || [],
-        },
-        summary: summary || `Analyzed ${schema.tables?.length || 0} tables with ${schema.relationships?.length || 0} relationships`,
-      },
-    };
-  },
-});
+  return { type: 'unknown' };
+}
 
 /**
  * POST handler for schema visualization API
- * Accepts FormData (file upload) or JSON (text input)
+ * Returns deterministic JSON response with parsed schema and diagram
  */
 export async function POST(req: Request) {
   try {
@@ -250,41 +93,57 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create AI agent with tools
-    const result = await streamText({
-      model: geminiModel as any,
-      system: `You are an expert database schema analyzer. Your task is to:
-1. Detect the schema type (Prisma, PostgreSQL, MySQL, etc.) using detectSchemaType
-2. Parse the schema using the appropriate parser (parsePrismaSchema or parseSQLSchema)
-3. Generate a diagram visualization using generateDiagram
-4. Format the final response using formatFinalResponse
-5. Provide a natural language explanation of the schema structure, relationships, and design patterns
+    // Detect schema type deterministically
+    const { type, dialect } = detectSchemaType(schemaContent);
 
-Always use the tools in sequence. If parsing fails, explain the error clearly.`,
-      prompt: `Analyze this database schema and generate a complete visualization:
+    if (type === 'unknown') {
+      return Response.json(
+        {
+          error: true,
+          message: 'Unrecognized schema format. Please provide a valid Prisma schema or SQL DDL statements.',
+        },
+        { status: 400 }
+      );
+    }
 
-\`\`\`
-${schemaContent}
-\`\`\`
+    // Parse schema directly (no AI involved)
+    let schema: Schema;
+    try {
+      if (type === 'prisma') {
+        schema = parsePrismaToSchema(schemaContent);
+      } else if (type === 'sql') {
+        schema = parseSQLToSchema(schemaContent, dialect as 'postgresql' | 'mysql');
+      } else {
+        throw new Error('Unsupported schema type');
+      }
+    } catch (parseError) {
+      console.error('Schema parsing error:', parseError);
+      return Response.json(
+        {
+          error: true,
+          message: parseError instanceof Error ? parseError.message : 'Failed to parse schema. Please check the syntax.',
+        },
+        { status: 400 }
+      );
+    }
 
-Please:
-1. Detect the schema type
-2. Parse it into structured format
-3. Generate diagram data
-4. Format the complete response
-5. Explain the schema structure, relationships, and any notable design patterns`,
-      tools: {
-        detectSchemaType,
-        parsePrismaSchema,
-        parseSQLSchema,
-        generateDiagram,
-        formatFinalResponse,
+    // Generate diagram data
+    const diagram = generateDiagramData(schema);
+
+    // Return structured JSON response
+    return Response.json({
+      success: true,
+      schema: {
+        tables: schema.tables,
+        relationships: schema.relationships,
+        metadata: schema.metadata,
       },
-      maxToolRoundtrips: 15, // Allow multiple tool calls
+      diagram: {
+        nodes: diagram.nodes,
+        edges: diagram.edges,
+      },
+      summary: `Parsed ${schema.tables.length} tables with ${schema.relationships.length} relationships`,
     });
-
-    // Return streaming response
-    return result.toTextStreamResponse();
   } catch (error) {
     console.error('Schema visualization error:', error);
     return Response.json(
