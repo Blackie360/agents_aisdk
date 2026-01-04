@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import ReactFlow, {
+import {
+  ReactFlow,
   Background,
   Controls,
   MiniMap,
