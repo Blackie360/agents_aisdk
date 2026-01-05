@@ -101,3 +101,4 @@ export function TableDetailsDrawer({ table, open, onClose }: TableDetailsDrawerP
   );
 }
 
+

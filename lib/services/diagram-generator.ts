@@ -24,3 +24,4 @@ export function generateDiagram(schema: Schema): {
   return { nodes, edges };
 }
 
+

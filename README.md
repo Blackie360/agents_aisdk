@@ -112,3 +112,4 @@ A powerful database schema visualization tool with AI-powered explanations. Tran
 
 See [LICENSE](LICENSE) file for details.
 
+
