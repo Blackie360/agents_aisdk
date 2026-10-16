@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Database,
   ArrowUpRight,
@@ -8,6 +8,7 @@ import {
   FolderOpen,
   ArrowRight,
 } from "lucide-react";
+import { aiProviders, AIProvider } from "@/lib/services/ai-providers";
 import { DiagramCanvas } from "@/components/schema/diagram-canvas";
 import { TableDetailsDrawer } from "@/components/schema/table-details-drawer";
 import { generateDiagram } from "@/lib/services/diagram-generator";
@@ -20,6 +21,52 @@ import { Format, Schema, Table } from "@/lib/types/schema";
 export default function HomePage() {
   const [format, setFormat] = useState<Format | "auto">("auto");
   const [input, setInput] = useState(examples.postgresql);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftStatus, setDraftStatus] = useState("");
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("schemamind.draft.v1");
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (
+          draft.version === 1 &&
+          typeof draft.input === "string" &&
+          new TextEncoder().encode(draft.input).length <= 200_000 &&
+          (draft.format === "auto" ||
+            formats.some((f) => f.id === draft.format))
+        ) {
+          setInput(draft.input);
+          setFormat(draft.format);
+        }
+      }
+    } catch {
+      setDraftStatus("Draft storage unavailable in this browser.");
+    }
+    setDraftReady(true);
+  }, []);
+  useEffect(() => {
+    if (!draftReady) return;
+    try {
+      if (new TextEncoder().encode(input).length > 200_000) {
+        setDraftStatus("Input exceeds 200 KB; changes are not saved.");
+        return;
+      }
+      if (!input) {
+        localStorage.removeItem("schemamind.draft.v1");
+        setDraftStatus("Draft cleared.");
+      } else {
+        localStorage.setItem(
+          "schemamind.draft.v1",
+          JSON.stringify({ version: 1, input, format }),
+        );
+        setDraftStatus("Draft saved in this browser.");
+      }
+    } catch {
+      setDraftStatus(
+        "Draft could not be saved. Keep a copy before refreshing.",
+      );
+    }
+  }, [input, format, draftReady]);
   const [schema, setSchema] = useState<Schema | null>(null);
   const [diagram, setDiagram] = useState<ReturnType<
     typeof generateDiagram
@@ -29,6 +76,8 @@ export default function HomePage() {
     [error, setError] = useState("");
   const [explanation, setExplanation] = useState(""),
     [aiBusy, setAiBusy] = useState(false);
+  const [provider, setProvider] = useState<AIProvider>("xai");
+  const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const generation = useRef(0);
   const folder = useRef<HTMLInputElement>(null);
@@ -85,9 +134,11 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           schema,
+          provider,
+          ...(model.trim() ? { model: model.trim() } : {}),
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         }),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(65_000),
       });
       const data = await readApiResponse(response);
       if (typeof data.explanation !== "string" || !data.explanation.trim())
@@ -240,6 +291,20 @@ export default function HomePage() {
             }}
             className="w-full h-64 resize-y rounded-xl border bg-background p-3 font-mono text-xs leading-6 focus:outline-teal-700"
           />
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span aria-live="polite">{draftStatus}</span>
+            <button
+              disabled={busy || !draftReady}
+              onClick={() => {
+                setInput("");
+                setFormat("auto");
+                clearResult();
+              }}
+              className="text-teal-700"
+            >
+              Clear draft
+            </button>
+          </div>
           <div className="flex gap-2">
             <button
               disabled={busy || !input.trim()}
@@ -457,15 +522,53 @@ export default function HomePage() {
                 onClick={explain}
                 className="border rounded-lg px-3 py-2 text-xs"
               >
-                {aiBusy ? "Explaining…" : "Explain with Grok"}
+                {aiBusy
+                  ? "Explaining…"
+                  : `Explain with ${provider === "xai" ? "Grok" : aiProviders[provider].name}`}
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               AI explanations can be inaccurate. Check the schema.
             </p>
             <div className="mt-4 space-y-2">
+              <label
+                htmlFor="ai-provider"
+                className="block text-xs font-medium"
+              >
+                AI provider
+              </label>
+              <select
+                id="ai-provider"
+                value={provider}
+                disabled={aiBusy}
+                onChange={(e) => {
+                  setProvider(e.target.value as AIProvider);
+                  setApiKey("");
+                  setModel("");
+                  setExplanation("");
+                }}
+                className="w-full rounded-lg border bg-card px-3 py-2 text-sm"
+              >
+                {Object.entries(aiProviders).map(([id, config]) => (
+                  <option key={id} value={id}>
+                    {config.name}
+                  </option>
+                ))}
+              </select>
+              <label htmlFor="ai-model" className="block text-xs font-medium">
+                Model (optional)
+              </label>
+              <input
+                id="ai-model"
+                value={model}
+                disabled={aiBusy}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={aiProviders[provider].model}
+                maxLength={100}
+                className="w-full rounded-lg border bg-card px-3 py-2 text-sm"
+              />
               <label htmlFor="xai-key" className="block text-xs font-medium">
-                Bring your own xAI API key (optional)
+                Bring your own {aiProviders[provider].name} API key (optional)
               </label>
               <div className="flex gap-2">
                 <input
@@ -477,7 +580,7 @@ export default function HomePage() {
                   value={apiKey}
                   disabled={aiBusy}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="xai-…"
+                  placeholder="API key"
                   aria-describedby="key-privacy"
                   className="min-w-0 flex-1 rounded-lg border bg-card px-3 py-2 text-sm"
                 />
@@ -493,9 +596,10 @@ export default function HomePage() {
                 id="key-privacy"
                 className="text-xs text-muted-foreground leading-5"
               >
-                Explain sends your schema and key through this server to xAI;
-                usage is billed to your key. Your key is kept only until cleared
-                or refreshed. Leave blank to use a configured server key.
+                Explain sends your schema and key through this server to{" "}
+                {aiProviders[provider].name}; usage is billed to your key. Your
+                key is kept only until cleared or refreshed; switching providers
+                clears it. Leave blank to use a configured server key.
               </p>
             </div>
             <p

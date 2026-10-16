@@ -34,3 +34,26 @@ test("valid API results and application errors remain useful", async () => {
     /invalid response/,
   );
 });
+
+test("sanitized AI access errors remain actionable for 401 and 403", async () => {
+  for (const status of [401, 403]) {
+    await assert.rejects(
+      readApiResponse(
+        Response.json(
+          {
+            code: "AI_ACCESS_DENIED",
+            message: "xAI rejected the API key or model access.",
+          },
+          { status },
+        ),
+      ),
+      /xAI rejected/,
+    );
+    await assert.rejects(
+      readApiResponse(
+        Response.json({ message: "private proxy details" }, { status }),
+      ),
+      /deployment access/,
+    );
+  }
+});

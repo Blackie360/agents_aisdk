@@ -340,3 +340,23 @@ test("statement scanner keeps escaped strings and dollar content intact", () => 
     2,
   );
 });
+
+test("COPY payloads cannot introduce fake tables or hide later DDL", () => {
+  assert.throws(
+    () =>
+      importSchema(
+        "CREATE TABLE real(id int); COPY real FROM STDIN;\nCREATE TABLE fake(id int);\n\\.\nCREATE TABLE later(id int);",
+        "postgresql",
+      ),
+    /COPY FROM STDIN/,
+  );
+});
+
+test("quoted COPY output text cannot be mistaken for stdin data", () => {
+  const schema = importSchema(
+    "COPY (SELECT 'from stdin') TO STDOUT; CREATE TABLE real(id int);",
+    "postgresql",
+  );
+  assert.equal(schema.tables.length, 1);
+  assert.equal(schema.tables[0].name, "real");
+});

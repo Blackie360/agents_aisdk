@@ -80,3 +80,11 @@ The interface uses an original SchemaMind design, not the Cassava design skill. 
 [Mobile workspace screenshot](docs/workspace-mobile.png)
 
 PostgreSQL scripts are split at statement boundaries, respecting quoted strings, dollar-quoted function bodies and nested comments. Only CREATE TABLE statements are imported; triggers, functions, indexes and migration operations are skipped with warnings. Their behavior is not represented. Invalid table syntax still fails, as do unquoted SQL routine bodies (use a schema-only export or dollar-quoted functions).
+
+AI providers: xAI, Gemini, OpenAI, Kimi (Moonshot global API), and Claude (Anthropic API). Choose a provider and optionally enter a model ID and personal API key. Switching providers clears the key. Keys remain in page memory only and are sent through this server only to the selected provider's fixed API endpoint when Explain is clicked; provider retention policies apply. Provider subscriptions are not API credentials. No automatic cross-provider fallback is used.
+
+Optional deployment keys: `XAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, `ANTHROPIC_API_KEY`. Optional model overrides: `XAI_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `KIMI_MODEL`, `ANTHROPIC_MODEL`. Redeploy after changing environment variables. Without a matching server key, that provider requires BYOK. Adapter tests use mocked provider responses; they do not verify live account access or spend API credits.
+
+PostgreSQL `COPY FROM STDIN` data dumps are explicitly rejected. Use `pg_dump --schema-only`; data rows are never interpreted as schema definitions.
+
+Schema text and selected format are automatically saved as a versioned local browser draft (up to 200 KB) and restored after refresh. Drafts are not cloud-synced. Clear draft removes the saved input; browser storage failures are shown without blocking imports. API keys are never included in drafts.
