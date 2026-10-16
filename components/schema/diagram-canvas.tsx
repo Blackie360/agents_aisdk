@@ -18,7 +18,7 @@ import "@xyflow/react/dist/style.css";
 import { TableNode } from "./table-node";
 import { Table } from "@/lib/types/schema";
 
-const fitOptions = { padding: 0.15, minZoom: 0.02, maxZoom: 1 };
+const fitOptions = { padding: 0.25, minZoom: 0.02, maxZoom: 1 };
 const nodeTypes = { table: TableNode };
 
 interface DiagramCanvasProps {
@@ -38,11 +38,16 @@ export function DiagramCanvas({
   const [focused, setFocused] = useState("");
   useEffect(() => {
     if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const close = (event: KeyboardEvent) => {
       if (event.key === "Escape") setExpanded(false);
     };
     window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", close);
+    };
   }, [expanded]);
   useEffect(() => {
     if (!flow) return;
