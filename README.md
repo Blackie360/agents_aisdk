@@ -88,3 +88,9 @@ Optional deployment keys: `XAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `MO
 PostgreSQL `COPY FROM STDIN` data dumps are explicitly rejected. Use `pg_dump --schema-only`; data rows are never interpreted as schema definitions.
 
 Schema text and selected format are automatically saved as a versioned local browser draft (up to 200 KB) and restored after refresh. Drafts are not cloud-synced. Clear draft removes the saved input; browser storage failures are shown without blocking imports. API keys are never included in drafts.
+
+## Automatic schema review
+
+After each successful import, local rules review declared primary keys, unique relationship targets, mixed nullability in composite foreign keys, and potential foreign-key index gaps. Findings link to table details and require no AI key or network request. Document schemas instead receive guidance about required top-level properties.
+
+Index suggestions are checks, not proof of missing indexes: ordinary indexes and unsupported syntax may be omitted by importers. The review does not validate data, workloads, permissions, type compatibility or migration safety. Always read import notes; no findings does not mean the database is fully audited.
