@@ -105,7 +105,7 @@ PostgreSQL imports retain column/table CHECK expressions, ON DELETE/ON UPDATE ac
 
 1. Connect the existing Neon database (for this deployment: `neon-teal-paddle`) to the Vercel project, exposing its pooled connection string as server-only `DATABASE_URL`.
 2. Run `migrations/001_usage.sql` in that database using Neon's SQL editor. This adds a dedicated table and index; it does not change existing application tables.
-3. Configure server-only `ADMIN_PASSWORD` in Vercel with a unique random password of at least 20 characters (maximum 512), then redeploy. Never use a `NEXT_PUBLIC_` prefix or commit credentials.
+3. Configure server-only `ADMIN_PASSWORD` in Vercel with a password of 8–512 characters (a unique random password of 20+ characters is recommended), then redeploy. Never use a `NEXT_PUBLIC_` prefix or commit credentials.
 4. Open `/admin` and enter the password. It is sent over HTTPS in the Authorization header, retained only in page memory, and removed on Lock or refresh. Every data request is authenticated server-side; responses are never cached. Missing/short passwords fail closed. This first release uses a shared owner password, not multi-user identity or role management.
 
 Events contain only a random event ID, type, outcome and server timestamp—no SQL, schemas, API keys, IP addresses or user identities. Event IDs deduplicate repeated deliveries. Events currently remain until the database owner deletes them; totals cover retained events only. For a public deployment, use Vercel rate limiting to mitigate telemetry abuse and password guessing. Do not expose this dashboard with a weak/reused password.

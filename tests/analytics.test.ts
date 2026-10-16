@@ -20,7 +20,7 @@ test("usage allows bounded metadata only, never schema contents", () => {
   ])
     assert.equal(isUsageEvent(bad), false);
 });
-test("admin fails closed without a strong password, and protects data", async () => {
+test("admin fails closed without a valid configured password, and protects data", async () => {
   const old = process.env.ADMIN_PASSWORD;
   const db = process.env.DATABASE_URL;
   try {
@@ -33,7 +33,7 @@ test("admin fails closed without a strong password, and protects data", async ()
     assert.equal(adminAuthorized(request("")), false);
     process.env.ADMIN_PASSWORD = "short";
     assert.equal(adminAuthorized(request("short")), false);
-    process.env.ADMIN_PASSWORD = "a-dedicated-long-test-password";
+    process.env.ADMIN_PASSWORD = "test-key";
     assert.equal((await GET(request("wrong"))).status, 401);
     const good = request(process.env.ADMIN_PASSWORD);
     assert.equal(adminAuthorized(good), true);
@@ -74,8 +74,7 @@ test("Neon writes are parameterized, deduplicated and fail open; AI is server co
   const oldKey = process.env.XAI_API_KEY;
   const queries: any[] = [];
   try {
-    process.env.DATABASE_URL =
-      "postgresql://synthetic@database.invalid/test";
+    process.env.DATABASE_URL = "postgresql://synthetic@database.invalid/test";
     delete process.env.XAI_API_KEY;
     neonConfig.fetchFunction = async (_url: unknown, options?: RequestInit) => {
       const body = JSON.parse(String(options?.body));
