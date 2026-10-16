@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Database,
+  LoaderCircle,
   ArrowUpRight,
   Download,
   Sparkles,
@@ -17,11 +18,41 @@ import { mermaid } from "@/lib/services/exports";
 import { formats, examples } from "@/lib/importers/catalog";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
 import { readApiResponse } from "@/lib/services/api-response";
-import { importInBrowser } from "@/lib/services/browser-import";
+import { Explanation } from "@/components/schema/explanation";
+import { preflight } from "@/lib/importers/preflight";
+import { importInBrowser, warmParser } from "@/lib/services/browser-import";
 import { Format, Schema, Table } from "@/lib/types/schema";
 export default function HomePage() {
   const [format, setFormat] = useState<Format | "auto">("auto");
   const [input, setInput] = useState(examples.postgresql);
+  const sourceInput = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const element = sourceInput.current;
+    if (!element) return;
+    const guard = (event: InputEvent) => {
+      if (!event.data || !event.inputType.startsWith("insert")) return;
+      try {
+        preflight(
+          element.value.slice(0, element.selectionStart) +
+            event.data +
+            element.value.slice(element.selectionEnd),
+        );
+      } catch (error) {
+        event.preventDefault();
+        setError(error instanceof Error ? error.message : "Input too large.");
+      }
+    };
+    element.addEventListener("beforeinput", guard);
+    return () => element.removeEventListener("beforeinput", guard);
+  }, []);
+  const supportDetails = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    try {
+      warmParser();
+    } catch {
+      /* Retry when requested. */
+    }
+  }, []);
   const [draftReady, setDraftReady] = useState(false);
   const [draftStatus, setDraftStatus] = useState("");
   useEffect(() => {
@@ -36,6 +67,16 @@ export default function HomePage() {
           (draft.format === "auto" ||
             formats.some((f) => f.id === draft.format))
         ) {
+          try {
+            preflight(draft.input);
+          } catch {
+            localStorage.removeItem("schemamind.draft.v1");
+            setDraftStatus(
+              "Oversized draft removed. Import up to 150 entities at a time.",
+            );
+            setDraftReady(true);
+            return;
+          }
           setInput(draft.input);
           setFormat(draft.format);
         }
@@ -48,6 +89,13 @@ export default function HomePage() {
   useEffect(() => {
     if (!draftReady) return;
     try {
+      try {
+        preflight(input);
+      } catch (e) {
+        localStorage.removeItem("schemamind.draft.v1");
+        setDraftStatus(e instanceof Error ? e.message : "Input not saved.");
+        return;
+      }
       if (new TextEncoder().encode(input).length > 200_000) {
         setDraftStatus("Input exceeds 200 KB; changes are not saved.");
         return;
@@ -103,10 +151,14 @@ export default function HomePage() {
     try {
       const content = await f.text();
       if (version !== generation.current) return;
+      preflight(content);
       setInput(content);
       setFormat("auto");
     } catch {
-      if (version === generation.current) setError("Could not read this file.");
+      if (version === generation.current)
+        setError(
+          "Could not import this file. Check the 200 KB and 150 entity limits.",
+        );
     }
   }
   async function visualize() {
@@ -187,6 +239,9 @@ export default function HomePage() {
         </div>
         <a
           href="#support"
+          onClick={() => {
+            if (supportDetails.current) supportDetails.current.open = true;
+          }}
           className="text-xs text-muted-foreground hover:text-teal-800"
         >
           Supported formats <ArrowUpRight className="inline" size={13} />
@@ -283,12 +338,32 @@ export default function HomePage() {
           </div>
           <textarea
             id="source"
+            ref={sourceInput}
+            onPaste={(event) => {
+              const element = event.currentTarget;
+              try {
+                preflight(
+                  element.value.slice(0, element.selectionStart) +
+                    event.clipboardData.getData("text") +
+                    element.value.slice(element.selectionEnd),
+                );
+              } catch (error) {
+                event.preventDefault();
+                setError(
+                  error instanceof Error ? error.message : "Input too large.",
+                );
+              }
+            }}
             spellCheck={false}
-            disabled={busy}
             value={input}
             onChange={(e) => {
-              setInput(e.target.value);
               clearResult();
+              try {
+                preflight(e.target.value);
+                setInput(e.target.value);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Input too large.");
+              }
             }}
             className="w-full h-64 resize-y rounded-xl border bg-background p-3 font-mono text-xs leading-6 focus:outline-teal-700"
           />
@@ -427,8 +502,29 @@ export default function HomePage() {
               </button>
             </div>
           </div>
+          {schema?.tables.some((t) => t.kind === "document") && (
+            <p className="px-4 py-2 text-xs text-muted-foreground">
+              Mermaid ERD is for relational tables. Use JSON export for document
+              structures.
+            </p>
+          )}
           <div className="h-[500px] md:h-[570px]">
-            {diagram ? (
+            {busy ? (
+              <div
+                aria-live="polite"
+                className="h-full flex flex-col items-center justify-center gap-3 text-teal-800"
+              >
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="animate-spin motion-reduce:animate-none"
+                  size={28}
+                />
+                <p className="font-medium">Parsing locally…</p>
+                <p className="text-xs text-muted-foreground">
+                  You can keep editing while the diagram is prepared.
+                </p>
+              </div>
+            ) : diagram ? (
               <DiagramCanvas
                 key={generation.current}
                 nodes={diagram.nodes}
@@ -502,7 +598,12 @@ export default function HomePage() {
                 </button>
               ))}
             </div>
-            <details className="mt-4 text-xs text-amber-800">
+            <details
+              open={schema.warnings.some((note) =>
+                note.includes("Unresolved reference"),
+              )}
+              className="mt-4 text-xs text-amber-800"
+            >
               <summary className="cursor-pointer">
                 Import notes ({schema.warnings.length})
               </summary>
@@ -613,17 +714,12 @@ export default function HomePage() {
                 clears it. Leave blank to use a configured server key.
               </p>
             </div>
-            <p
-              role="status"
-              className="mt-4 text-sm whitespace-pre-wrap leading-6"
-            >
-              {explanation}
-            </p>
+            <Explanation text={explanation} />
           </div>
         </section>
       )}
       <section id="support" className="px-5 md:px-10 py-8">
-        <details>
+        <details ref={supportDetails}>
           <summary className="cursor-pointer text-sm font-medium">
             Supported formats &amp; limits · 7 importers
           </summary>

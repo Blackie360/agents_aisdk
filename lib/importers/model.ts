@@ -64,6 +64,15 @@ export function finalize(schema: Schema): Schema {
     const from = schema.tables.find((t) => t.id === r.from.table)!;
     const to = schema.tables.find((t) => t.id === r.to.table);
     if (!to) {
+      r.from.columns.forEach((name, i) => {
+        const column = from.columns.find((c) => c.name === name);
+        if (column)
+          column.foreignKey = {
+            table: r.to.table,
+            column: r.to.columns[i],
+            unresolved: true,
+          };
+      });
       warn(
         schema,
         `Unresolved reference ${r.from.table} → ${r.to.table}; relationship omitted. Import the referenced entity too.`,

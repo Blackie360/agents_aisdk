@@ -14,6 +14,7 @@ export interface Column {
   foreignKey?: {
     table: string;
     column: string;
+    unresolved?: boolean;
     onDelete?: string;
     onUpdate?: string;
   };

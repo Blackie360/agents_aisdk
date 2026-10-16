@@ -530,3 +530,165 @@ test("PostgreSQL rule details display checks, indexes and delete/update actions"
   await expect(dialog).toContainText("CREATE INDEX c_pid");
   await page.screenshot({ path: "test-results/postgres-rules.png" });
 });
+
+test("large pasted SQL and restored drafts cannot trap the editor", async ({
+  page,
+}) => {
+  const source = Array.from(
+    { length: 3000 },
+    (_, i) => `CREATE TABLE table_${i} (id INT PRIMARY KEY);`,
+  ).join("\n");
+  await page.goto("/");
+  const input = page.getByLabel("Schema source", { exact: true });
+  const before = await input.inputValue();
+  await input.fill(source, { timeout: 3000 });
+  await expect(page.locator("p[role=alert]")).toContainText("150 entities");
+  await expect(input).toHaveValue(before);
+  await page.evaluate(
+    (input) =>
+      localStorage.setItem(
+        "schemamind.draft.v1",
+        JSON.stringify({ version: 1, input, format: "postgresql" }),
+      ),
+    source,
+  );
+  await page.reload();
+  await expect(input).not.toHaveValue(source);
+  await input.fill("CREATE TABLE small (id SERIAL PRIMARY KEY);");
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(input).toBeEnabled();
+  await expect(page.locator(".react-flow__node")).toHaveCount(1);
+});
+test("missing references, garbage, support disclosure and safe Markdown are understandable", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Supported formats" }).click();
+  await expect(page.locator("#support details")).toHaveAttribute("open", "");
+  await page.getByLabel("Input format").selectOption("postgresql");
+  await page
+    .getByLabel("Schema source", { exact: true })
+    .fill("CREATE TABLE a (id INT, b_id INT REFERENCES nope(id));");
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.getByText(/Unresolved reference a → nope/)).toBeVisible();
+  await page.route("**/api/schema-explanation", (route) =>
+    route.fulfill({
+      json: {
+        explanation: "**Customer** uses `id`.\n<img src=x onerror=alert(1)>",
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "Explain with Grok" }).click();
+  await expect(page.getByRole("status").locator("strong")).toHaveText(
+    "Customer",
+  );
+  await expect(page.getByRole("status").locator("code")).toHaveText("id");
+  await expect(page.getByRole("status").locator("img")).toHaveCount(0);
+  await page.getByLabel("Input format").selectOption("auto");
+  await page
+    .getByLabel("Schema source", { exact: true })
+    .fill("hello world }{ ;;;");
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.locator("p[role=alert]")).toContainText(
+    "Unrecognized schema",
+  );
+});
+
+test("worker is reused, syntax errors are readable and document export has a reason", async ({
+  page,
+}) => {
+  let workers = 0;
+  page.on("worker", () => workers++);
+  await page.goto("/");
+  const input = page.getByLabel("Schema source", { exact: true });
+  await page.getByLabel("Input format").selectOption("postgresql");
+  const durations: number[] = [];
+  for (let i = 0; i < 2; i++) {
+    await input.fill(`CREATE TABLE t${i} (id INT PRIMARY KEY);`);
+    const start = Date.now();
+    await page
+      .getByRole("button", { name: "Visualize schema", exact: true })
+      .click();
+    await expect(input).toBeEnabled();
+    await expect(page.locator(".react-flow__node")).toHaveCount(1);
+    durations.push(Date.now() - start);
+  }
+  expect(workers).toBe(1);
+  console.log("One-table visualize milliseconds:", durations);
+  for (const format of ["postgresql", "mysql", "sqlite", "typeorm"]) {
+    await page.getByLabel("Input format").selectOption(format);
+    await input.fill(
+      format === "typeorm"
+        ? '{"name":'
+        : "CREATE TABLE broken (id INT NOT NOT);",
+    );
+    await page
+      .getByRole("button", { name: "Visualize schema", exact: true })
+      .click();
+    await expect(page.locator("p[role=alert]")).toBeVisible();
+    await expect(page.locator("p[role=alert]")).not.toContainText("kw_");
+    await expect(page.locator(".react-flow__node")).toHaveCount(0);
+  }
+  await page.getByLabel("Input format").selectOption("json-schema");
+  await input.fill(
+    JSON.stringify({
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Mermaid ERD is for relational tables. Use JSON export for document structures.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Schema review", exact: true }),
+  ).toContainText("Review complete");
+  await page.screenshot({
+    path: "test-results/feedback-fixes.png",
+    fullPage: true,
+  });
+});
+
+test("small schemas fit larger while remaining inside the expanded canvas", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.getByLabel("Input format").selectOption("postgresql");
+  await page
+    .getByLabel("Schema source", { exact: true })
+    .fill("CREATE TABLE small(id int PRIMARY KEY);");
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Fit to screen", exact: true })
+    .click();
+  await expect
+    .poll(async () =>
+      parseInt(await page.getByLabel("Diagram zoom").innerText()),
+    )
+    .toBeGreaterThan(100);
+  await expect
+    .poll(async () => {
+      const box = await page.locator(".react-flow__node").boundingBox();
+      return Math.abs(box!.x + box!.width / 2 - 720);
+    })
+    .toBeLessThan(5);
+  const node = await page.locator(".react-flow__node").boundingBox();
+  expect(node!.x).toBeGreaterThanOrEqual(0);
+  expect(node!.x + node!.width).toBeLessThanOrEqual(1440);
+  await page.screenshot({ path: "test-results/small-schema-fit.png" });
+});

@@ -35,6 +35,7 @@ function Fields({
           {c.foreignKey && (
             <p className="text-xs mt-1">
               References {c.foreignKey.table}.{c.foreignKey.column}
+              {c.foreignKey.unresolved && " · Referenced table not imported"}
               {c.foreignKey.onDelete && (
                 <> · ON DELETE {c.foreignKey.onDelete.toUpperCase()}</>
               )}

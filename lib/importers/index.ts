@@ -1,3 +1,4 @@
+import { preflight } from "./preflight";
 import { Format, Schema } from "../types/schema";
 import { parsePrismaToSchema } from "../parsers/prisma-parser";
 import { parseSQLToSchema } from "../parsers/sql-parser";
@@ -20,8 +21,16 @@ export function importSchema(content: unknown, format: unknown): Schema {
     throw new Error("Provide non-empty schema text.");
   if (new TextEncoder().encode(content).byteLength > MAX_INPUT_BYTES)
     throw new Error("Schema exceeds the 200 KB import limit.");
+  preflight(content);
   if (format === "auto") {
     format = detectFormat(content);
+    if (
+      !format &&
+      !/\bCREATE\s+(?:(?:TEMPORARY|TEMP|UNLOGGED)\s+)?TABLE\b/i.test(content)
+    )
+      throw new Error(
+        "Unrecognized schema. Paste SQL table definitions, Prisma, Drizzle or a supported JSON schema, or select the format manually.",
+      );
     if (!format)
       throw new Error(
         "Format is ambiguous. Choose the SQL dialect or schema format above; common SQL is valid in multiple databases.",

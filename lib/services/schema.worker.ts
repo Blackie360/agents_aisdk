@@ -1,3 +1,4 @@
+import { importError } from "../importers/preflight";
 import { importSchema } from "../importers";
 self.onmessage = (event: MessageEvent) => {
   try {
@@ -6,7 +7,7 @@ self.onmessage = (event: MessageEvent) => {
     });
   } catch (error) {
     self.postMessage({
-      error: error instanceof Error ? error.message : "Import failed.",
+      error: importError(error),
     });
   }
 };

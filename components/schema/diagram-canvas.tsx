@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ReactFlow,
   MarkerType,
@@ -18,7 +18,8 @@ import "@xyflow/react/dist/style.css";
 import { TableNode } from "./table-node";
 import { Table } from "@/lib/types/schema";
 
-const fitOptions = { padding: 0.25, minZoom: 0.02, maxZoom: 1 };
+const defaultFitOptions = { padding: 0.25, minZoom: 0.02, maxZoom: 1 };
+const smallFitOptions = { padding: 0.2, minZoom: 0.02, maxZoom: 1.8 };
 const nodeTypes = { table: TableNode };
 
 interface DiagramCanvasProps {
@@ -32,6 +33,9 @@ export function DiagramCanvas({
   edges: initialEdges,
   onNodeClick,
 }: DiagramCanvasProps) {
+  const container = useRef<HTMLDivElement>(null);
+  const fitOptions =
+    initialNodes.length <= 2 ? smallFitOptions : defaultFitOptions;
   const [expanded, setExpanded] = useState(false);
   const [flow, setFlow] = useState<ReactFlowInstance | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -50,12 +54,23 @@ export function DiagramCanvas({
     };
   }, [expanded]);
   useEffect(() => {
-    if (!flow) return;
-    const frame = requestAnimationFrame(() => {
-      void flow.fitView({ ...fitOptions, duration: 300 });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [expanded, flow]);
+    if (!flow || !container.current) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const fit = () => {
+      clearTimeout(timer);
+      // Let React Flow observe the new viewport before calculating its center.
+      timer = setTimeout(() => {
+        void flow.fitView({ ...fitOptions, duration: 300 });
+      }, 60);
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(container.current);
+    fit();
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [expanded, flow, fitOptions]);
   const fitToScreen = () => {
     setFocused("");
     setExpanded(true);
@@ -71,6 +86,7 @@ export function DiagramCanvas({
 
   return (
     <div
+      ref={container}
       className={
         expanded
           ? "fixed inset-0 z-50 rounded-xl overflow-hidden border border-border bg-background shadow-2xl"
