@@ -1,5 +1,31 @@
 import { test, expect } from "@playwright/test";
 import { examples } from "../../lib/importers/catalog";
+test("imports stay local when the hosted parsing API is broken; AI failure preserves the diagram", async ({
+  page,
+}) => {
+  await page.goto("/");
+  let requests = 0;
+  await page.route("**/api/schema-visualizer", (route) => {
+    requests++;
+    return route.fulfill({ status: 500 });
+  });
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  expect(requests).toBe(0);
+  await page.route("**/api/schema-explanation", (route) =>
+    route.fulfill({ status: 502, body: "<html>private proxy details</html>" }),
+  );
+  await page.getByRole("button", { name: "Explain with Grok" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "non-JSON response (HTTP 502)",
+  );
+  await expect(page.getByRole("status")).not.toContainText(
+    "private proxy details",
+  );
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+});
 test("auto import, interactive diagram, details, exports and optional AI failure", async ({
   page,
 }) => {
@@ -37,7 +63,7 @@ test("auto import, interactive diagram, details, exports and optional AI failure
   });
   expect(errors).toEqual([]);
 });
-test("all importers render through the production API", async ({ page }) => {
+test("all importers render through the browser worker", async ({ page }) => {
   await page.goto("/");
   for (const [format, content] of Object.entries(examples)) {
     await page.getByLabel("Input format").selectOption(format);

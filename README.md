@@ -19,6 +19,7 @@ Open http://localhost:3000. For a production build: `npm run build && npm start`
 - **Auto-detect** recognizes Prisma, Drizzle imports, TypeORM EntitySchema JSON and document JSON Schema. SQL-specific tokens can suggest PostgreSQL, MySQL or SQLite; shared/ambiguous SQL requires an explicit dialect choice. Detection is heuristic, with a manual override.
 - **Find schemas in a project folder** lists likely schema files from a locally selected repository. It excludes `.git`, dependencies and build output; only a selected file is read. Up to 100 candidates are shown. Directory picking depends on browser support; Open file is the fallback.
 - Click **Visualize schema**. Drag nodes, pan/zoom, select an entity, inspect fields and read import notes.
+- Imports run in an on-demand browser worker using the shared parsers. Schema text is not sent to the server for diagrams. The worker uses parser defaults, never local configuration files, and is terminated after each import or a 30-second timeout. AI is a separate, explicit server request.
 - Export the shared model as JSON, including warnings. Relational schemas also export Mermaid ERD with sanitized identifiers. Mermaid is a diagram, not a lossless SQL export; JSON preserves original names and compound keys.
 
 This release does **not** connect to GitHub repositories, introspect running databases, run migration scripts, or execute uploaded JavaScript/TypeScript. Drizzle definitions split across files must be combined manually; imports are not followed. Choosing a local folder is file discovery, not a persistent repository grant.
@@ -60,7 +61,7 @@ npm run test:e2e
 npm audit
 ```
 
-Unit tests cover all importers, incorrect/ambiguous formats, compound key pairing, forward/self references, Prisma targets, document nesting, unsupported warnings, exports and file discovery. Browser tests exercise the production API, all sample inputs, file upload, dragging, details, downloads, AI absence, errors and mobile layout. Browser tests expect no xAI API key and start a local production server on port 3100.
+Unit tests cover all importers, incorrect/ambiguous formats, compound key pairing, forward/self references, Prisma targets, document nesting, unsupported warnings, exports and file discovery. Browser tests exercise the production build, browser workers, retained API validation, all sample inputs, file upload, dragging, details, downloads, AI absence, errors and mobile layout. Browser tests expect no xAI API key and start a local production server on port 3100.
 
 ## Add an importer
 

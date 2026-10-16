@@ -18,7 +18,7 @@ export const importers: Record<Format, (text: string) => Schema> = {
 export function importSchema(content: unknown, format: unknown): Schema {
   if (typeof content !== "string" || !content.trim())
     throw new Error("Provide non-empty schema text.");
-  if (Buffer.byteLength(content, "utf8") > MAX_INPUT_BYTES)
+  if (new TextEncoder().encode(content).byteLength > MAX_INPUT_BYTES)
     throw new Error("Schema exceeds the 200 KB import limit.");
   if (format === "auto") {
     format = detectFormat(content);
