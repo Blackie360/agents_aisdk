@@ -1,152 +1,263 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@source "../node_modules/streamdown/dist/index.js";
+@import "tailwindcss";
+@config "../tailwind.config.ts";
 
 @layer utilities {
-    .text-balance {
-        text-wrap: balance;
-    }
+  .text-balance {
+    text-wrap: balance;
+  }
 }
 
 @layer base {
-    :root {
-        --background: 222.2 84% 4.9%;
-        --foreground: 210 40% 98%;
-        --card: 222.2 84% 4.9%;
-        --card-foreground: 210 40% 98%;
-        --popover: 222.2 84% 4.9%;
-        --popover-foreground: 210 40% 98%;
-        --primary: 217.2 91.2% 59.8%;
-        --primary-foreground: 222.2 47.4% 11.2%;
-        --secondary: 217.2 32.6% 17.5%;
-        --secondary-foreground: 210 40% 98%;
-        --muted: 217.2 32.6% 17.5%;
-        --muted-foreground: 215 20.2% 65.1%;
-        --accent: 217.2 32.6% 17.5%;
-        --accent-foreground: 210 40% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 210 40% 98%;
-        --border: 217.2 32.6% 17.5%;
-        --input: 217.2 32.6% 17.5%;
-        --ring: 224.3 76.3% 48%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-        --radius: 0.5rem;
-    }
-    .dark {
-        --background: 222.2 84% 4.9%;
-        --foreground: 210 40% 98%;
-        --card: 222.2 84% 4.9%;
-        --card-foreground: 210 40% 98%;
-        --popover: 222.2 84% 4.9%;
-        --popover-foreground: 210 40% 98%;
-        --primary: 217.2 91.2% 59.8%;
-        --primary-foreground: 222.2 47.4% 11.2%;
-        --secondary: 217.2 32.6% 17.5%;
-        --secondary-foreground: 210 40% 98%;
-        --muted: 217.2 32.6% 17.5%;
-        --muted-foreground: 215 20.2% 65.1%;
-        --accent: 217.2 32.6% 17.5%;
-        --accent-foreground: 210 40% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 210 40% 98%;
-        --border: 217.2 32.6% 17.5%;
-        --input: 217.2 32.6% 17.5%;
-        --ring: 224.3 76.3% 48%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-    }
+  :root {
+    --background: 45 23% 97%;
+    --foreground: 170 20% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 170 20% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 170 20% 13%;
+    --primary: 170 60% 24%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 15% 94%;
+    --secondary-foreground: 170 20% 13%;
+    --muted: 150 10% 95%;
+    --muted-foreground: 160 7% 39%;
+    --accent: 150 15% 93%;
+    --accent-foreground: 170 20% 13%;
+    --destructive: 0 65% 43%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 140 11% 85%;
+    --input: 140 11% 85%;
+    --ring: 170 60% 24%;
+    --radius: 0.75rem;
+  }
 }
 
 @layer base {
-    * {
-        @apply border-border;
-    }
+  * {
+    @apply border-border;
+  }
 
-    body {
-        @apply bg-background text-foreground;
-        font-family: 'geist', sans-serif;
-    }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "geist", sans-serif;
+  }
 
-    @font-face {
-        font-family: "geist";
-        font-style: normal;
-        font-weight: 100 900;
-        src: url(/fonts/geist.woff2) format("woff2");
-    }
+  @font-face {
+    font-family: "geist";
+    font-style: normal;
+    font-weight: 100 900;
+    src: url(/fonts/geist.woff2) format("woff2");
+  }
 
-    @font-face {
-        font-family: "geist-mono";
-        font-style: normal;
-        font-weight: 100 900;
-        src: url(/fonts/geist-mono.woff2) format("woff2");
-    }
+  @font-face {
+    font-family: "geist-mono";
+    font-style: normal;
+    font-weight: 100 900;
+    src: url(/fonts/geist-mono.woff2) format("woff2");
+  }
 
-    h1, h2, h3, h4, h5, h6 {
-        font-weight: 600;
-    }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+  }
 
-    code, pre {
-        font-family: 'geist-mono', monospace;
-    }
+  code,
+  pre {
+    font-family: "geist-mono", monospace;
+  }
 }
 
 /* Monospace for code areas */
 .font-mono {
-    font-family: 'geist-mono', monospace;
+  font-family: "geist-mono", monospace;
 }
 
 /* React Flow custom styles */
 .react-flow__node-table {
-    font-size: 14px;
+  font-size: 14px;
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-in {
-    animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.3s ease-out;
 }
 
 .skeleton {
-    * {
-        pointer-events: none !important;
-    }
+  * {
+    pointer-events: none !important;
+  }
 
-    *[class^="text"] {
-        color: transparent !important;
-        @apply rounded-sm bg-foreground/20 select-none animate-pulse;
-    }
+  *[class^="text"] {
+    color: transparent !important;
+    @apply rounded-sm bg-foreground/20 select-none animate-pulse;
+  }
 
-    *[class^="no-skeleton"] {
-        opacity: 0 !important;
-    }
+  *[class^="no-skeleton"] {
+    opacity: 0 !important;
+  }
 
-    input {
-        opacity: 0 !important;
-    }
+  input {
+    opacity: 0 !important;
+  }
 
-    .skeleton-bg {
-        @apply bg-foreground/10;
-    }
+  .skeleton-bg {
+    @apply bg-foreground/10;
+  }
 
-    .skeleton-div {
-        @apply bg-foreground/20 animate-pulse;
-    }
+  .skeleton-div {
+    @apply bg-foreground/20 animate-pulse;
+  }
+}
+
+.diagram-empty {
+  background-image: radial-gradient(#d3dbd4 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+.app-shell {
+  max-width: 1680px;
+  margin: 0 auto;
+}
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  color: #52675e;
+}
+.example-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #d8dfd8;
+  border-radius: 99px;
+  background: #fff;
+  padding: 7px 13px;
+  font-size: 12px;
+}
+.example-chip:hover {
+  border-color: #237768;
+  background: #eff7f2;
+}
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #cddbd1;
+  border-radius: 7px;
+  color: #166354;
+  font-size: 11px;
+}
+.source-panel,
+.canvas-panel {
+  box-shadow: 0 3px 12px #172b1d04;
+}
+.diagram-empty {
+  background-color: #f2f5ef;
+}
+.preview-graphic {
+  position: relative;
+  width: 300px;
+  height: 150px;
+}
+.preview-card {
+  position: absolute;
+  width: 160px;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid #c4d4c9;
+  box-shadow: 0 9px 20px #1738250a;
+  text-align: left;
+  overflow: hidden;
+  z-index: 2;
+}
+.preview-one {
+  top: 0;
+  left: 0;
+  transform: rotate(-4deg);
+}
+.preview-two {
+  bottom: 0;
+  right: 0;
+  transform: rotate(3deg);
+}
+.preview-label {
+  display: block;
+  background: #e5efe7;
+  color: #245f4e;
+  padding: 9px 13px;
+  font: 600 12px geist-mono;
+}
+.preview-card p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  font: 10px geist-mono;
+}
+.preview-card em {
+  font-style: normal;
+  margin-left: auto;
+  color: #89978e;
+}
+.preview-card i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #d5a765;
+}
+.preview-connector {
+  position: absolute;
+  width: 120px;
+  height: 80px;
+  top: 34px;
+  left: 105px;
+  border: 2px solid #689f86;
+  border-left: 0;
+  border-bottom-right-radius: 20px;
+}
+button,
+a,
+select {
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+button:not(:disabled),
+summary {
+  cursor: pointer;
+}
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #267b68;
+  outline-offset: 3px;
+}
+.react-flow__controls-button {
+  background: white;
+  color: #183a2c;
+  border-color: #d8e0da;
+}
+@media (max-width: 420px) {
+  .preview-graphic {
+    transform: scale(0.85);
+  }
 }

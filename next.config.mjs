@@ -1,27 +1,8 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {},
-  images: {
-    remotePatterns: [],
-  },
-  transpilePackages: ['shiki', 'streamdown'],
+export default {
   serverExternalPackages: [
-    '@mrleebo/prisma-ast',
-    'pgsql-ast-parser',
-    'lilconfig',
+    "@mrleebo/prisma-ast",
+    "pgsql-ast-parser",
+    "node-sql-parser",
   ],
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // Mark Node.js modules as external for client-side builds
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        os: false,
-      };
-    }
-    return config;
-  },
 };
-
-export default nextConfig;

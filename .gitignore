@@ -6,6 +6,9 @@ node_modules/
 .pnp.*
 
 # Testing
+/test-results/
+/playwright-report/
+/.test-build/
 /coverage
 *.lcov
 .nyc_output
@@ -104,7 +107,6 @@ Desktop.ini
 
 # Optional: Keep pnpm-lock.yaml but ignore others
 yarn.lock
-package-lock.json
 
 # Drizzle migrations (if auto-generated, uncomment to ignore)
 # lib/drizzle/

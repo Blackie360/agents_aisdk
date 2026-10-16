@@ -1,54 +1,58 @@
+export type Format =
+  | "postgresql"
+  | "mysql"
+  | "sqlite"
+  | "prisma"
+  | "typeorm"
+  | "json-schema"
+  | "drizzle";
 export interface Column {
   name: string;
   type: string;
   nullable: boolean;
   primaryKey: boolean;
-  foreignKey?: {
-    table: string;
-    column: string;
-  };
+  foreignKey?: { table: string; column: string };
   defaultValue?: string;
   unique?: boolean;
   indexed?: boolean;
+  children?: Column[];
+  description?: string;
+  required?: boolean;
 }
-
 export interface Table {
+  [key: string]: unknown;
   id: string;
   name: string;
+  kind: "table" | "document";
   columns: Column[];
   description?: string;
+  primaryKey: string[];
+  uniqueKeys: string[][];
 }
-
 export interface Relationship {
+  [key: string]: unknown;
   id: string;
-  from: { table: string; column: string };
-  to: { table: string; column: string };
-  type: 'one-to-one' | 'one-to-many' | 'many-to-many';
+  from: { table: string; column: string; columns: string[] };
+  to: { table: string; column: string; columns: string[] };
+  type: "one-to-one" | "many-to-one";
 }
-
 export interface Schema {
   tables: Table[];
   relationships: Relationship[];
-  metadata?: {
-    database?: string;
-    version?: string;
-  };
+  warnings: string[];
+  metadata: { database: Format; version: string };
 }
-
 export interface DiagramNode {
   id: string;
-  type: 'table';
+  type: "table";
   position: { x: number; y: number };
   data: Table;
 }
-
 export interface DiagramEdge {
   id: string;
   source: string;
   target: string;
-  type: 'smoothstep' | 'straight';
-  label?: string;
+  type: "smoothstep";
+  label: string;
   data: Relationship;
 }
-
-
