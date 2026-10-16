@@ -11,7 +11,7 @@ export const formats: {
     support:
       "CREATE TABLE, composite keys, inline/table foreign keys, defaults and nullability.",
     limits:
-      "REFERENCES requires explicit target columns. No migrations, views, triggers, policies or index modeling. Unsupported statements warn; unsupported syntax fails.",
+      "REFERENCES requires explicit target columns. No migrations, views, triggers, policies or index modeling. Non-table statements are skipped with warnings. Invalid table syntax and unquoted SQL routine bodies fail.",
   },
   {
     id: "mysql",

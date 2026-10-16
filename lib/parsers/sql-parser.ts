@@ -3,6 +3,7 @@ import sqlParser from "node-sql-parser";
 const { Parser } = sqlParser;
 import { emptySchema, relation, table, warn } from "../importers/model";
 import { Schema } from "../types/schema";
+import { postgresStatements } from "./postgres-statements";
 // AST adapters intentionally keep dialect parsing separate. Never relabel PostgreSQL as MySQL.
 const qualified = (n: any) =>
   [n.schema ?? n.db, n.name ?? n.table].filter(Boolean).join(".");
@@ -17,11 +18,19 @@ export function parseSQLToSchema(
     "DDL structure only: index, CHECK, generated-column, referential-action and database-specific storage semantics are not modeled. This is not a migration runner.",
   );
   if (dialect === "postgresql") {
-    for (const stmt of parse(content) as any[]) {
-      if (stmt.type !== "create table") {
-        warn(schema, `Unsupported statement omitted: ${stmt.type}.`);
+    for (const statement of postgresStatements(content)) {
+      if (
+        !/^create\s+(?:(?:global|local)\s+)?(?:(?:temporary|temp|unlogged)\s+)?table\b/i.test(
+          statement.text.trim(),
+        )
+      ) {
+        warn(
+          schema,
+          `Unsupported statement omitted: ${statement.words.slice(0, 2).join(" ") || "non-table SQL"}. Only CREATE TABLE structure is imported; migrations and procedural behavior are not applied.`,
+        );
         continue;
       }
+      const stmt = (parse(statement.text) as any[])[0];
       const t = table(qualified(stmt.name));
       schema.tables.push(t);
       const constraint = (c: any, fields?: string[]) => {

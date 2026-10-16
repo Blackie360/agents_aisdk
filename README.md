@@ -78,3 +78,5 @@ The interface uses an original SchemaMind design, not the Cassava design skill. 
 ![SchemaMind desktop workspace](docs/workspace-desktop.png)
 
 [Mobile workspace screenshot](docs/workspace-mobile.png)
+
+PostgreSQL scripts are split at statement boundaries, respecting quoted strings, dollar-quoted function bodies and nested comments. Only CREATE TABLE statements are imported; triggers, functions, indexes and migration operations are skipped with warnings. Their behavior is not represented. Invalid table syntax still fails, as do unquoted SQL routine bodies (use a schema-only export or dollar-quoted functions).

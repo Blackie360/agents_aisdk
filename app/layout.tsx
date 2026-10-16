@@ -1,10 +1,35 @@
 import { Metadata } from "next";
 import "./globals.css";
 
+const title = "SchemaMind — Your schema, visualized";
+const description =
+  "Turn SQL, Prisma, Drizzle and JSON schemas into interactive diagrams. Explore relationships, inspect fields and export your schema. No database login needed.";
 export const metadata: Metadata = {
-  title: "SchemaMind - Database Schema Visualizer",
-  description:
-    "Explore SQL, ORM and document schemas. Interactive diagrams, field details and portable exports.",
+  metadataBase: new URL("https://schema.blackielabs.com"),
+  title,
+  description,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "SchemaMind",
+    title,
+    description,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "SchemaMind: your schema, visualized, with linked authors and books tables",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({
