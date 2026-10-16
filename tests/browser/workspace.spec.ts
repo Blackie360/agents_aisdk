@@ -1,24 +1,19 @@
 import { test, expect } from "@playwright/test";
 import { examples } from "../../lib/importers/catalog";
-test("empty hosted responses show actionable status and parsing can recover", async ({
+test("imports stay local when the hosted parsing API is broken; AI failure preserves the diagram", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.route("**/api/schema-visualizer", (route) =>
-    route.fulfill({ status: 204 }),
-  );
-  await page
-    .getByRole("button", { name: "Visualize schema", exact: true })
-    .click();
-  await expect(
-    page.getByRole("region", { name: "Schema input" }).getByRole("alert"),
-  ).toContainText("empty response (HTTP 204)");
-  await expect(page.locator(".react-flow__node")).toHaveCount(0);
-  await page.unroute("**/api/schema-visualizer");
+  let requests = 0;
+  await page.route("**/api/schema-visualizer", (route) => {
+    requests++;
+    return route.fulfill({ status: 500 });
+  });
   await page
     .getByRole("button", { name: "Visualize schema", exact: true })
     .click();
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  expect(requests).toBe(0);
   await page.route("**/api/schema-explanation", (route) =>
     route.fulfill({ status: 502, body: "<html>private proxy details</html>" }),
   );
@@ -68,7 +63,7 @@ test("auto import, interactive diagram, details, exports and optional AI failure
   });
   expect(errors).toEqual([]);
 });
-test("all importers render through the production API", async ({ page }) => {
+test("all importers render through the browser worker", async ({ page }) => {
   await page.goto("/");
   for (const [format, content] of Object.entries(examples)) {
     await page.getByLabel("Input format").selectOption(format);

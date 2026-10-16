@@ -16,6 +16,7 @@ import { mermaid } from "@/lib/services/exports";
 import { formats, examples } from "@/lib/importers/catalog";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
 import { readApiResponse } from "@/lib/services/api-response";
+import { importInBrowser } from "@/lib/services/browser-import";
 import { Format, Schema, Table } from "@/lib/types/schema";
 export default function HomePage() {
   const [format, setFormat] = useState<Format | "auto">("auto");
@@ -64,20 +65,10 @@ export default function HomePage() {
     const version = generation.current;
     setBusy(true);
     try {
-      const response = await fetch("/api/schema-visualizer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schema: input, format }),
-      });
-      const data = await readApiResponse(response);
-      if (
-        !Array.isArray(data.schema?.tables) ||
-        !Array.isArray(data.schema?.relationships)
-      )
-        throw new Error("The server returned an invalid schema response.");
+      const parsed = await importInBrowser(input, format);
       if (version !== generation.current) return;
-      setSchema(data.schema);
-      setDiagram(generateDiagram(data.schema));
+      setSchema(parsed);
+      setDiagram(generateDiagram(parsed));
     } catch (e) {
       if (version === generation.current)
         setError(e instanceof Error ? e.message : "Import failed.");
@@ -349,8 +340,8 @@ export default function HomePage() {
           )}
 
           <p className="text-xs leading-5 text-muted-foreground">
-            Schema text is sent to this app for parsing. AI receives it only
-            when you choose Explain. 200 KB per import.
+            Schema parsing stays in your browser. AI receives it only when you
+            choose Explain. 200 KB per import.
           </p>
           {error && (
             <p
