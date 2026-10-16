@@ -15,6 +15,7 @@ import { generateDiagram } from "@/lib/services/diagram-generator";
 import { mermaid } from "@/lib/services/exports";
 import { formats, examples } from "@/lib/importers/catalog";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
+import { readApiResponse } from "@/lib/services/api-response";
 import { Format, Schema, Table } from "@/lib/types/schema";
 export default function HomePage() {
   const [format, setFormat] = useState<Format | "auto">("auto");
@@ -68,8 +69,12 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ schema: input, format }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      const data = await readApiResponse(response);
+      if (
+        !Array.isArray(data.schema?.tables) ||
+        !Array.isArray(data.schema?.relationships)
+      )
+        throw new Error("The server returned an invalid schema response.");
       if (version !== generation.current) return;
       setSchema(data.schema);
       setDiagram(generateDiagram(data.schema));
@@ -94,8 +99,11 @@ export default function HomePage() {
         }),
         signal: AbortSignal.timeout(30_000),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      const data = await readApiResponse(response);
+      if (typeof data.explanation !== "string" || !data.explanation.trim())
+        throw new Error(
+          "The server returned an empty AI explanation. Your diagram remains available.",
+        );
       if (version === generation.current) setExplanation(data.explanation);
     } catch (e) {
       if (version === generation.current)

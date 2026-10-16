@@ -1,5 +1,36 @@
 import { test, expect } from "@playwright/test";
 import { examples } from "../../lib/importers/catalog";
+test("empty hosted responses show actionable status and parsing can recover", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.route("**/api/schema-visualizer", (route) =>
+    route.fulfill({ status: 204 }),
+  );
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Schema input" }).getByRole("alert"),
+  ).toContainText("empty response (HTTP 204)");
+  await expect(page.locator(".react-flow__node")).toHaveCount(0);
+  await page.unroute("**/api/schema-visualizer");
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  await page.route("**/api/schema-explanation", (route) =>
+    route.fulfill({ status: 502, body: "<html>private proxy details</html>" }),
+  );
+  await page.getByRole("button", { name: "Explain with Grok" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "non-JSON response (HTTP 502)",
+  );
+  await expect(page.getByRole("status")).not.toContainText(
+    "private proxy details",
+  );
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+});
 test("auto import, interactive diagram, details, exports and optional AI failure", async ({
   page,
 }) => {
