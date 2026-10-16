@@ -28,6 +28,7 @@ export default function HomePage() {
     [error, setError] = useState("");
   const [explanation, setExplanation] = useState(""),
     [aiBusy, setAiBusy] = useState(false);
+  const [apiKey, setApiKey] = useState("");
   const generation = useRef(0);
   const folder = useRef<HTMLInputElement>(null);
   const [candidates, setCandidates] = useState<File[]>([]);
@@ -84,7 +85,10 @@ export default function HomePage() {
       const response = await fetch("/api/schema-explanation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schema }),
+        body: JSON.stringify({
+          schema,
+          ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+        }),
         signal: AbortSignal.timeout(30_000),
       });
       const data = await response.json();
@@ -474,13 +478,50 @@ export default function HomePage() {
                 onClick={explain}
                 className="border rounded-lg px-3 py-2 text-xs"
               >
-                {aiBusy ? "Explaining…" : "Explain with AI"}
+                {aiBusy ? "Explaining…" : "Explain with Grok"}
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Sends this parsed schema to Google Gemini when configured. AI may
-              be inaccurate; the parsed model is the source of truth.
+              Grok explains your parsed schema. AI can be inaccurate; the parsed
+              model is the source of truth.
             </p>
+            <div className="mt-4 space-y-2">
+              <label htmlFor="xai-key" className="block text-xs font-medium">
+                Bring your own xAI API key (optional)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="xai-key"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={512}
+                  value={apiKey}
+                  disabled={aiBusy}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="xai-…"
+                  aria-describedby="key-privacy"
+                  className="min-w-0 flex-1 rounded-lg border bg-card px-3 py-2 text-sm"
+                />
+                <button
+                  disabled={!apiKey || aiBusy}
+                  onClick={() => setApiKey("")}
+                  className="border rounded-lg px-3 py-2 text-xs disabled:opacity-40"
+                >
+                  Clear key
+                </button>
+              </div>
+              <p
+                id="key-privacy"
+                className="text-xs text-muted-foreground leading-5"
+              >
+                Your key stays in this page’s memory until cleared or refreshed.
+                Clicking Explain sends it through the SchemaMind server to xAI
+                with your parsed schema. It is not saved by this app, logged or
+                included in exports. xAI usage is billed to your key. Leave
+                blank to use a server key, if configured.
+              </p>
+            </div>
             <p
               role="status"
               className="mt-4 text-sm whitespace-pre-wrap leading-6"

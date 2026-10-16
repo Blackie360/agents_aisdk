@@ -39,11 +39,15 @@ All importers produce the model in `lib/types/schema.ts`. Support is deliberatel
 
 Limits: 200 KB schema text, 150 entities, 3,000 fields, and 20 nested document levels. Invalid syntax, duplicates or missing foreign-key fields fail. Missing referenced entities warn and omit the edge. Warnings accompany every export, so partial support is visible.
 
-## Optional AI
+## Optional xAI explanations and personal keys
 
-Only clicking **Explain with AI** sends the parsed model to Google Gemini. Set `GOOGLE_GENERATIVE_AI_API_KEY` on your server to enable it; never paste credentials into a schema. The response uses a single JSON contract rather than the old incompatible streaming protocols. Missing credentials, provider failures and timeouts leave diagrams and exports usable. No API key is required at build time. The previous gateway configuration is not supported in this release.
+Click **Explain with Grok** to send the parsed model to xAI using its Responses API, directly over HTTPS with no AI SDK dependency. The default model is `grok-4.7`; a server operator can override it with `XAI_MODEL`.
 
-AI output is advisory. The model is the source of truth. A public deployment with AI enabled should apply its own access and usage controls before exposing a paid key; AI is disabled when no key is set.
+Users can enter an **xAI API key** in the masked Bring your own key field. Personal keys take precedence over the optional server `XAI_API_KEY`. Keys live only in React page memory, disappear on refresh/clear, and are sent only when Explain is clicked. They pass through the SchemaMind server to `https://api.x.ai/v1/responses`; this is not a browser-to-provider connection. The app does not persist or log them, put them in URLs, or include them in exports. Responses use `Cache-Control: no-store`; provider requests set `store: false`. Operators must keep request-body logging disabled in any external proxy/APM. Usage is billed to the supplied key.
+
+No key is needed for imports, diagrams, exports, or builds. Missing/invalid keys, quota limits, incomplete responses and timeouts leave those features usable. Gemini and the previous gateway configuration are no longer used. This integration provides text explanations; speech generation is not included yet.
+
+A public operator exposing a shared server key must supply access and usage controls appropriate to their deployment. BYOK works without configuring a shared key. Never commit keys or paste them into source schemas.
 
 ## Verification
 
@@ -56,7 +60,7 @@ npm run test:e2e
 npm audit
 ```
 
-Unit tests cover all importers, incorrect/ambiguous formats, compound key pairing, forward/self references, Prisma targets, document nesting, unsupported warnings, exports and file discovery. Browser tests exercise the production API, all sample inputs, file upload, dragging, details, downloads, AI absence, errors and mobile layout. Browser tests expect no Google API key and start a local production server on port 3100.
+Unit tests cover all importers, incorrect/ambiguous formats, compound key pairing, forward/self references, Prisma targets, document nesting, unsupported warnings, exports and file discovery. Browser tests exercise the production API, all sample inputs, file upload, dragging, details, downloads, AI absence, errors and mobile layout. Browser tests expect no xAI API key and start a local production server on port 3100.
 
 ## Add an importer
 

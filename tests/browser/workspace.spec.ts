@@ -28,7 +28,7 @@ test("auto import, interactive diagram, details, exports and optional AI failure
   const mermaid = page.waitForEvent("download");
   await page.getByRole("button", { name: "Mermaid ERD" }).click();
   expect((await mermaid).suggestedFilename()).toBe("schemamind.mmd");
-  await page.getByRole("button", { name: "Explain with AI" }).click();
+  await page.getByRole("button", { name: "Explain with Grok" }).click();
   await expect(page.getByRole("status")).toContainText("not configured");
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
   await page.screenshot({
@@ -155,4 +155,50 @@ test("local project discovery lists candidates and imports only the selected fil
   await expect(page.locator(".react-flow__node")).toContainText(
     "FolderExample",
   );
+});
+
+test("personal xAI key is masked, opt-in, absent from storage and exports, and cleared on reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  const key = page.getByLabel("Bring your own xAI API key (optional)");
+  await expect(key).toHaveAttribute("type", "password");
+  const dummy = "xai-test-browser-only";
+  let calls = 0;
+  await page.route("**/api/schema-explanation", async (route) => {
+    calls++;
+    expect(route.request().postDataJSON().apiKey).toBe(dummy);
+    await route.fulfill({ json: { explanation: "Mock Grok explanation" } });
+  });
+  await key.fill(dummy);
+  expect(calls).toBe(0);
+  expect(
+    await page.evaluate(() =>
+      JSON.stringify({
+        local: { ...localStorage },
+        session: { ...sessionStorage },
+      }),
+    ),
+  ).not.toContain(dummy);
+  await page.getByRole("button", { name: "Explain with Grok" }).click();
+  await expect(page.getByRole("status")).toContainText("Mock Grok explanation");
+  expect(calls).toBe(1);
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "JSON", exact: true }).click();
+  const stream = await (await download).createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(chunks).toString()).not.toContain(dummy);
+  await page.getByRole("button", { name: "Clear key" }).click();
+  await expect(key).toHaveValue("");
+  await key.fill(dummy);
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(key).toHaveValue("");
+  await page.screenshot({ path: "test-results/xai-byok.png", fullPage: true });
 });

@@ -48,32 +48,91 @@ test("body reader preserves split UTF-8 and cancels oversized streams", async ()
   } as RequestInit);
   assert.deepEqual(await readJson(req), { name: "🌱" });
 });
-test("AI missing key, JSON response and provider failure are independent of imports", async () => {
-  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+test("xAI server fallback, BYOK precedence and private Responses API contract", async () => {
+  const originalKey = process.env.XAI_API_KEY;
   const originalFetch = globalThis.fetch;
-  const request = () =>
+  const request = (extra: object = {}) =>
     new Request("http://local", {
       method: "POST",
-      body: JSON.stringify({ schema: { tables: [], relationships: [] } }),
+      body: JSON.stringify({
+        schema: { tables: [], relationships: [] },
+        ...extra,
+      }),
+    });
+  const success = () =>
+    Response.json({
+      status: "completed",
+      output: [
+        {
+          type: "message",
+          content: [{ type: "output_text", text: "Explanation" }],
+        },
+      ],
     });
   try {
-    delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    delete process.env.XAI_API_KEY;
     assert.equal((await explain(request())).status, 503);
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "test-only";
+    process.env.XAI_API_KEY = "server-test-key";
+    let calls = 0;
+    globalThis.fetch = async (url, options) => {
+      calls++;
+      assert.equal(url, "https://api.x.ai/v1/responses");
+      const payload = JSON.parse(options!.body as string);
+      assert.equal(payload.store, false);
+      assert.equal(payload.model, process.env.XAI_MODEL || "grok-4.7");
+      assert.ok(!JSON.stringify(payload).includes("test-key"));
+      assert.equal(
+        new Headers(options!.headers).get("Authorization"),
+        calls === 1 ? "Bearer server-test-key" : "Bearer personal-test-key",
+      );
+      return success();
+    };
+    assert.equal((await explain(request())).status, 200);
+    const response = await explain(request({ apiKey: "personal-test-key" }));
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), { explanation: "Explanation" });
+    for (const apiKey of ["", "has spaces", 123, null, "a".repeat(513)])
+      assert.equal((await explain(request({ apiKey }))).status, 400);
+    assert.equal(calls, 2); // Invalid personal keys cannot fall back to the server's key.
+    for (const status of [401, 403, 429, 500]) {
+      globalThis.fetch = async () =>
+        new Response("secret-provider-error", { status });
+      const failure = await explain(request({ apiKey: "personal-test-key" }));
+      assert.equal(
+        failure.status,
+        status === 403 ? 401 : status === 500 ? 502 : status,
+      );
+      assert.ok(!(await failure.text()).includes("secret-provider-error"));
+    }
+    globalThis.fetch = async () => {
+      throw new Error("personal-test-key");
+    };
+    assert.ok(
+      !(
+        await (await explain(request({ apiKey: "personal-test-key" }))).text()
+      ).includes("personal-test-key"),
+    );
     globalThis.fetch = async () =>
-      Response.json({
-        candidates: [{ content: { parts: [{ text: "Plain explanation" }] } }],
-      });
-    const response = await explain(request());
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), {
-      explanation: "Plain explanation",
-    });
-    globalThis.fetch = async () => new Response("", { status: 429 });
+      Response.json({ status: "incomplete", output: [] });
     assert.equal((await explain(request())).status, 502);
+    const malformed = await explain(
+      new Request("http://local", {
+        method: "POST",
+        body: '{"apiKey":"personal-test-key", broken',
+      }),
+    );
+    assert.ok(!(await malformed.text()).includes("personal-test-key"));
+    const crossOrigin = await explain(
+      new Request("http://local", {
+        method: "POST",
+        headers: { Origin: "https://other.example" },
+        body: "{}",
+      }),
+    );
+    assert.equal(crossOrigin.status, 403);
   } finally {
     globalThis.fetch = originalFetch;
-    if (key === undefined) delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    else process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
+    if (originalKey === undefined) delete process.env.XAI_API_KEY;
+    else process.env.XAI_API_KEY = originalKey;
   }
 });
