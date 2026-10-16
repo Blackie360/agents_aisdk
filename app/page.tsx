@@ -1,4 +1,5 @@
 "use client";
+import { reportVisualization } from "@/lib/analytics/browser";
 import { useEffect, useRef, useState } from "react";
 import {
   Database,
@@ -198,10 +199,12 @@ export default function HomePage() {
     setBusy(true);
     try {
       const parsed = await importInBrowser(input, format);
+      reportVisualization("success");
       if (version !== generation.current) return;
       setSchema(parsed);
       setDiagram(generateDiagram(parsed));
     } catch (e) {
+      reportVisualization("failure");
       if (version === generation.current)
         setError(e instanceof Error ? e.message : "Import failed.");
     } finally {
@@ -491,7 +494,8 @@ export default function HomePage() {
 
           <p className="text-xs leading-5 text-muted-foreground">
             Schema parsing stays in your browser. AI receives it only when you
-            choose Explain. 200 KB per import.
+            choose Explain. 200 KB per import. Anonymous run counts are
+            recorded.
           </p>
           {error && (
             <p

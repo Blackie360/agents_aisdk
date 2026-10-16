@@ -98,3 +98,14 @@ Index suggestions are checks, not proof of missing indexes: ordinary indexes and
 ### PostgreSQL rule metadata
 
 PostgreSQL imports retain column/table CHECK expressions, ON DELETE/ON UPDATE actions (default NO ACTION), and parsed CREATE INDEX definitions, including unique, expression and partial indexes. Table details and JSON exports expose these rules; Mermaid remains a structural ERD. Full, plain-column unique B-tree indexes contribute unique keys. Only non-partial B-tree indexes with matching leading columns satisfy the review’s index coverage check. Expressions and predicates are displayed, never evaluated. Unsupported index syntax warns instead of silently claiming coverage. Other importers retain their existing support limits. No SQL is executed.
+
+### Private usage dashboard (Neon)
+
+`/admin` shows visualization and AI explanation attempts separately, with success/failure totals and 30 UTC days of activity. Counts begin after setup; historical activity is unavailable. Visualization reports are best-effort browser telemetry, not verified database queries. AI attempts are recorded on the server after schema/provider validation (including configuration failures). Invalid requests are excluded. Storage failures never prevent parsing or AI responses, but cause undercounting. Public browser events can be inflated by automated clients; these metrics are not suitable for billing.
+
+1. Connect the existing Neon database (for this deployment: `neon-teal-paddle`) to the Vercel project, exposing its pooled connection string as server-only `DATABASE_URL`.
+2. Run `migrations/001_usage.sql` in that database using Neon's SQL editor. This adds a dedicated table and index; it does not change existing application tables.
+3. Configure server-only `ADMIN_PASSWORD` in Vercel with a unique random password of at least 20 characters (maximum 512), then redeploy. Never use a `NEXT_PUBLIC_` prefix or commit credentials.
+4. Open `/admin` and enter the password. It is sent over HTTPS in the Authorization header, retained only in page memory, and removed on Lock or refresh. Every data request is authenticated server-side; responses are never cached. Missing/short passwords fail closed. This first release uses a shared owner password, not multi-user identity or role management.
+
+Events contain only a random event ID, type, outcome and server timestamp—no SQL, schemas, API keys, IP addresses or user identities. Event IDs deduplicate repeated deliveries. Events currently remain until the database owner deletes them; totals cover retained events only. For a public deployment, use Vercel rate limiting to mitigate telemetry abuse and password guessing. Do not expose this dashboard with a weak/reused password.

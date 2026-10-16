@@ -1,3 +1,5 @@
+import { recordUsage } from "@/lib/analytics/store";
+import { randomUUID } from "node:crypto";
 import {
   aiProviders,
   AIProvider,
@@ -25,6 +27,8 @@ export async function POST(req: Request) {
     })()
   )
     return reply({ message: "Cross-origin requests are not allowed." }, 403);
+  let tracked = false;
+  let succeeded = false;
   try {
     const body = await readJson(req);
     const { schema } = body ?? {};
@@ -37,6 +41,7 @@ export async function POST(req: Request) {
     const provider = body.provider ?? "xai";
     if (typeof provider !== "string" || !Object.hasOwn(aiProviders, provider))
       return reply({ message: "Choose a supported AI provider." }, 400);
+    tracked = true;
     const config = aiProviders[provider as AIProvider];
     const supplied = Object.hasOwn(body, "apiKey");
     const key = supplied ? body.apiKey : process.env[config.keyEnv];
@@ -119,6 +124,7 @@ export async function POST(req: Request) {
         },
         502,
       );
+    succeeded = true;
     return reply({ explanation });
   } catch (error) {
     if (error instanceof BodyTooLarge)
@@ -134,5 +140,12 @@ export async function POST(req: Request) {
       },
       502,
     );
+  } finally {
+    if (tracked)
+      await recordUsage({
+        id: randomUUID(),
+        kind: "explanation",
+        outcome: succeeded ? "success" : "failure",
+      });
   }
 }
