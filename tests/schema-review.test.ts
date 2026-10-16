@@ -113,3 +113,37 @@ test("unresolved index targets and unsupported index syntax warn honestly", () =
     schema.warnings.some((w) => w.includes("target table not imported")),
   );
 });
+
+test("composite FK coverage accepts reordered leading columns, not gaps or expressions", () => {
+  const base =
+    "CREATE TABLE parent(a int,b int,PRIMARY KEY(a,b));CREATE TABLE child(id int PRIMARY KEY,a int NOT NULL,b int NOT NULL,z int,FOREIGN KEY(a,b) REFERENCES parent(a,b));";
+  for (const [columns, predicate, expected] of [
+    ["a,b", "", false],
+    ["b,a", "", false],
+    ["b,a,z", "", false],
+    ["a,z,b", "", true],
+    ["z,a,b", "", true],
+    ["a,a", "", true],
+    ["b,a", " WHERE a > 0", true],
+    ["(b+1),a", "", true],
+  ] as const) {
+    const schema = importSchema(
+      `${base} CREATE INDEX fk ON child(${columns})${predicate};`,
+      "postgresql",
+    );
+    assert.equal(
+      reviewSchema(schema).some(
+        (f) => f.title === "Check the foreign-key index",
+      ),
+      expected,
+      `${columns}${predicate}`,
+    );
+  }
+  const schema = importSchema(base, "postgresql");
+  schema.tables[1].uniqueKeys.push(["b", "a", "z"]);
+  assert.ok(
+    !reviewSchema(schema).some(
+      (f) => f.title === "Check the foreign-key index",
+    ),
+  );
+});

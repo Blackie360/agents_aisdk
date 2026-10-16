@@ -19,12 +19,57 @@ import { formats, examples } from "@/lib/importers/catalog";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
 import { readApiResponse } from "@/lib/services/api-response";
 import { Explanation } from "@/components/schema/explanation";
-import { preflight } from "@/lib/importers/preflight";
+import { createPreflightGuard } from "@/lib/importers/preflight";
 import { importInBrowser, warmParser } from "@/lib/services/browser-import";
 import { Format, Schema, Table } from "@/lib/types/schema";
 export default function HomePage() {
   const [format, setFormat] = useState<Format | "auto">("auto");
-  const [input, setInput] = useState(examples.postgresql);
+  const [input, setInputState] = useState(examples.postgresql);
+  const [validateInput] = useState(() => createPreflightGuard());
+  const recoveringDraft = useRef(false);
+  function setInput(value: string) {
+    recoveringDraft.current = false;
+    setInputState(value);
+  }
+  const pendingDraft = useRef<{
+    input: string;
+    format: Format | "auto";
+  } | null>(null);
+  function flushDraft(notify = true) {
+    const draft = pendingDraft.current;
+    if (!draft) return;
+    pendingDraft.current = null;
+    try {
+      if (draft.input)
+        localStorage.setItem(
+          "schemamind.draft.v1",
+          JSON.stringify({ version: 1, ...draft }),
+        );
+      else localStorage.removeItem("schemamind.draft.v1");
+      if (notify)
+        setDraftStatus(
+          draft.input ? "Draft saved in this browser." : "Draft cleared.",
+        );
+    } catch {
+      if (notify)
+        setDraftStatus(
+          "Draft could not be saved. Keep a copy before refreshing.",
+        );
+    }
+  }
+  useEffect(() => {
+    const hide = () => flushDraft();
+    const visibility = () => {
+      if (document.visibilityState === "hidden") hide();
+    };
+    window.addEventListener("pagehide", hide);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      flushDraft(false);
+      window.removeEventListener("pagehide", hide);
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  }, []);
   const sourceInput = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const element = sourceInput.current;
@@ -32,7 +77,7 @@ export default function HomePage() {
     const guard = (event: InputEvent) => {
       if (!event.data || !event.inputType.startsWith("insert")) return;
       try {
-        preflight(
+        validateInput(
           element.value.slice(0, element.selectionStart) +
             event.data +
             element.value.slice(element.selectionEnd),
@@ -63,13 +108,13 @@ export default function HomePage() {
         if (
           draft.version === 1 &&
           typeof draft.input === "string" &&
-          new TextEncoder().encode(draft.input).length <= 200_000 &&
           (draft.format === "auto" ||
             formats.some((f) => f.id === draft.format))
         ) {
           try {
-            preflight(draft.input);
+            validateInput(draft.input);
           } catch {
+            recoveringDraft.current = true;
             localStorage.removeItem("schemamind.draft.v1");
             setDraftStatus(
               "Oversized draft removed. Import up to 150 entities at a time.",
@@ -87,34 +132,16 @@ export default function HomePage() {
     setDraftReady(true);
   }, []);
   useEffect(() => {
-    if (!draftReady) return;
-    try {
-      try {
-        preflight(input);
-      } catch (e) {
-        localStorage.removeItem("schemamind.draft.v1");
-        setDraftStatus(e instanceof Error ? e.message : "Input not saved.");
-        return;
-      }
-      if (new TextEncoder().encode(input).length > 200_000) {
-        setDraftStatus("Input exceeds 200 KB; changes are not saved.");
-        return;
-      }
-      if (!input) {
-        localStorage.removeItem("schemamind.draft.v1");
-        setDraftStatus("Draft cleared.");
-      } else {
-        localStorage.setItem(
-          "schemamind.draft.v1",
-          JSON.stringify({ version: 1, input, format }),
-        );
-        setDraftStatus("Draft saved in this browser.");
-      }
-    } catch {
-      setDraftStatus(
-        "Draft could not be saved. Keep a copy before refreshing.",
-      );
+    if (!draftReady || recoveringDraft.current) return;
+    // Every entry path validates before accepting input. Do not rescan for autosave.
+    pendingDraft.current = { input, format };
+    if (!input) {
+      flushDraft();
+      return;
     }
+    setDraftStatus("Saving draft…");
+    const timer = setTimeout(() => flushDraft(), 400);
+    return () => clearTimeout(timer);
   }, [input, format, draftReady]);
   const [schema, setSchema] = useState<Schema | null>(null);
   const [diagram, setDiagram] = useState<ReturnType<
@@ -151,7 +178,7 @@ export default function HomePage() {
     try {
       const content = await f.text();
       if (version !== generation.current) return;
-      preflight(content);
+      validateInput(content);
       setInput(content);
       setFormat("auto");
     } catch {
@@ -342,7 +369,7 @@ export default function HomePage() {
             onPaste={(event) => {
               const element = event.currentTarget;
               try {
-                preflight(
+                validateInput(
                   element.value.slice(0, element.selectionStart) +
                     event.clipboardData.getData("text") +
                     element.value.slice(element.selectionEnd),
@@ -359,7 +386,7 @@ export default function HomePage() {
             onChange={(e) => {
               clearResult();
               try {
-                preflight(e.target.value);
+                validateInput(e.target.value);
                 setInput(e.target.value);
               } catch (e) {
                 setError(e instanceof Error ? e.message : "Input too large.");

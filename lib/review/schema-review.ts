@@ -82,19 +82,21 @@ export function reviewSchema(schema: Schema): Finding[] {
         "Composite reference mixes optional and required fields",
         `${label}. Confirm the intended null behavior; a partially null composite foreign key may bypass reference checking depending on the database and MATCH mode.`,
       );
+    const covers = (keys: (string | null)[]) => {
+      const leading = keys.slice(0, relation.from.columns.length);
+      return (
+        leading.length === relation.from.columns.length &&
+        new Set(leading).size === relation.from.columns.length &&
+        relation.from.columns.every((name) => leading.includes(name))
+      );
+    };
     const indexed = source.indexes?.some(
       (index) =>
-        index.method === "btree" &&
-        !index.predicate &&
-        relation.from.columns.every(
-          (name, position) => index.columns[position] === name,
-        ),
+        index.method === "btree" && !index.predicate && covers(index.columns),
     );
     const covered =
       indexed ||
-      [source.primaryKey, ...source.uniqueKeys].some((key) =>
-        relation.from.columns.every((name, index) => key[index] === name),
-      ) ||
+      [source.primaryKey, ...source.uniqueKeys].some(covers) ||
       (relation.from.columns.length === 1 &&
         source.columns.find(
           (column) => column.name === relation.from.columns[0],

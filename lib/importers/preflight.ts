@@ -34,3 +34,13 @@ export function importError(error: unknown): string {
   }
   return message;
 }
+
+/** Per-editor cache: retain only the last accepted value, never cache failures. */
+export function createPreflightGuard() {
+  let accepted: string | undefined;
+  return (input: string) => {
+    if (input === accepted) return;
+    preflight(input);
+    accepted = input;
+  };
+}
