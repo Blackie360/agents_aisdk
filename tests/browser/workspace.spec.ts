@@ -281,86 +281,98 @@ CREATE TRIGGER ticket_evidence_gate BEFORE UPDATE OF local_status ON tickets FOR
   ).toBeVisible();
 });
 
-test("large diagrams fit all tables and support zoom, focus and expanded view", async ({
-  page,
-}) => {
-  await page.goto("/");
-  const source = Array.from(
-    { length: 24 },
-    (_, i) =>
-      `CREATE TABLE table_${i} (id SERIAL PRIMARY KEY, ${Array.from({ length: 12 }, (_, j) => `field_${j} TEXT`).join(",")});`,
-  ).join("\n");
-  await page.getByLabel("Schema source", { exact: true }).fill(source);
-  await page
-    .getByRole("button", { name: "Visualize schema", exact: true })
-    .click();
-  await expect(page.locator(".react-flow__node")).toHaveCount(24);
-  const allFit = () =>
-    page.evaluate(() => {
-      const canvas = document
-        .querySelector(".react-flow")!
-        .getBoundingClientRect();
-      return [...document.querySelectorAll(".react-flow__node")].every(
-        (node) => {
-          const rect = node.getBoundingClientRect();
-          return (
-            rect.width > 0 &&
-            rect.left >= canvas.left &&
-            rect.right <= canvas.right &&
-            rect.top >= canvas.top &&
-            rect.bottom <= canvas.bottom
-          );
-        },
-      );
+for (const size of [
+  { width: 375, height: 812 },
+  { width: 812, height: 375 },
+  { width: 768, height: 1024 },
+  { width: 1440, height: 900 },
+])
+  test(`large diagrams fit and expand at ${size.width}x${size.height}`, async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.setViewportSize(size);
+    const source = Array.from(
+      { length: 24 },
+      (_, i) =>
+        `CREATE TABLE table_${i} (id SERIAL PRIMARY KEY, ${Array.from({ length: 12 }, (_, j) => `field_${j} TEXT`).join(",")});`,
+    ).join("\n");
+    await page.getByLabel("Schema source", { exact: true }).fill(source);
+    await page
+      .getByRole("button", { name: "Visualize schema", exact: true })
+      .click();
+    await expect(page.locator(".react-flow__node")).toHaveCount(24);
+    const allFit = () =>
+      page.evaluate(() => {
+        const canvas = document
+          .querySelector(".react-flow")!
+          .getBoundingClientRect();
+        return [...document.querySelectorAll(".react-flow__node")].every(
+          (node) => {
+            const rect = node.getBoundingClientRect();
+            return (
+              rect.width > 0 &&
+              rect.left >= canvas.left &&
+              rect.right <= canvas.right &&
+              rect.top >= canvas.top &&
+              rect.bottom <= canvas.bottom
+            );
+          },
+        );
+      });
+    await expect.poll(allFit).toBe(true);
+    const viewport = page.locator(".react-flow__viewport");
+    const before = await viewport.getAttribute("style");
+    await page.getByRole("button", { name: "Zoom In", exact: true }).click();
+    await expect(viewport).not.toHaveAttribute("style", before!);
+    const after = await viewport.getAttribute("style");
+    await page.getByRole("button", { name: "Zoom Out", exact: true }).click();
+    await expect(viewport).not.toHaveAttribute("style", after!);
+    await page
+      .getByLabel("Find table in diagram")
+      .selectOption({ label: "table_23" });
+    await expect
+      .poll(async () => {
+        const node = await page
+          .locator(".react-flow__node")
+          .filter({ hasText: "table_23" })
+          .boundingBox();
+        const canvas = await page.locator(".react-flow").boundingBox();
+        return (
+          !!node &&
+          !!canvas &&
+          node.x >= canvas.x &&
+          node.x + node.width <= canvas.x + canvas.width
+        );
+      })
+      .toBe(true);
+    await page
+      .getByRole("button", { name: "Fit to screen", exact: true })
+      .click();
+    await expect
+      .poll(async () => {
+        const box = await page.locator(".react-flow").boundingBox();
+        const viewport = page.viewportSize()!;
+        return (
+          !!box &&
+          box.width >= viewport.width - 4 &&
+          box.height >= viewport.height - 4
+        );
+      })
+      .toBe(true);
+    await expect.poll(allFit).toBe(true);
+    const close = page.getByRole("button", {
+      name: "Close expanded view",
+      exact: true,
     });
-  await expect.poll(allFit).toBe(true);
-  const viewport = page.locator(".react-flow__viewport");
-  const before = await viewport.getAttribute("style");
-  await page.getByRole("button", { name: "Zoom In", exact: true }).click();
-  await expect(viewport).not.toHaveAttribute("style", before!);
-  const after = await viewport.getAttribute("style");
-  await page.getByRole("button", { name: "Zoom Out", exact: true }).click();
-  await expect(viewport).not.toHaveAttribute("style", after!);
-  await page
-    .getByLabel("Find table in diagram")
-    .selectOption({ label: "table_23" });
-  await expect
-    .poll(async () => {
-      const node = await page
-        .locator(".react-flow__node")
-        .filter({ hasText: "table_23" })
-        .boundingBox();
-      const canvas = await page.locator(".react-flow").boundingBox();
-      return (
-        !!node &&
-        !!canvas &&
-        node.x >= canvas.x &&
-        node.x + node.width <= canvas.x + canvas.width
-      );
-    })
-    .toBe(true);
-  await page
-    .getByRole("button", { name: "Fit to screen", exact: true })
-    .click();
-  await expect
-    .poll(async () => {
-      const box = await page.locator(".react-flow").boundingBox();
-      const viewport = page.viewportSize()!;
-      return (
-        !!box &&
-        box.width >= viewport.width - 4 &&
-        box.height >= viewport.height - 4
-      );
-    })
-    .toBe(true);
-  await expect.poll(allFit).toBe(true);
-  await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("button", { name: "Fit to screen", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Fit all", exact: true }).click();
-  await expect.poll(allFit).toBe(true);
-});
+    await expect(close).toBeInViewport();
+    await close.click();
+    await expect(
+      page.getByRole("button", { name: "Fit to screen", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Fit all", exact: true }).click();
+    await expect.poll(allFit).toBe(true);
+  });
 
 test("provider changes clear credentials and selected providers reach the explanation request", async ({
   page,
@@ -457,4 +469,40 @@ test("unavailable browser storage does not prevent importing", async ({
     .getByRole("button", { name: "Visualize schema", exact: true })
     .click();
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
+});
+
+test("automatic local review links findings to table details", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("Input format").selectOption("postgresql");
+  await page
+    .locator("textarea")
+    .first()
+    .fill(
+      "CREATE TABLE parent (id int); CREATE TABLE child (id int PRIMARY KEY, parent_id int REFERENCES parent(id));",
+    );
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  const review = page.getByRole("region", {
+    name: "Schema review",
+    exact: true,
+  });
+  await expect(review).toContainText("No primary key declared");
+  await expect(review).toContainText("Reference has no declared unique target");
+  await expect(review).toContainText("Check the foreign-key index");
+  await review.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/schema-review-panel.png" });
+  await review
+    .getByRole("button", {
+      name: "Inspect parent: No primary key declared",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText("parent");
+  await page.screenshot({
+    path: "test-results/schema-review.png",
+    fullPage: true,
+  });
 });

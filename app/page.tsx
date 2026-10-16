@@ -9,6 +9,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { aiProviders, AIProvider } from "@/lib/services/ai-providers";
+import { SchemaReview } from "@/components/schema/schema-review";
 import { DiagramCanvas } from "@/components/schema/diagram-canvas";
 import { TableDetailsDrawer } from "@/components/schema/table-details-drawer";
 import { generateDiagram } from "@/lib/services/diagram-generator";
@@ -479,6 +480,7 @@ export default function HomePage() {
           </div>
         </section>
       </div>
+      {schema && <SchemaReview schema={schema} onSelect={setSelected} />}
       {schema && (
         <section className="mx-5 md:mx-10 mt-5 grid md:grid-cols-2 gap-5">
           <div className="border rounded-xl p-4">
