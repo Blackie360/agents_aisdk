@@ -230,3 +230,14 @@ test("SQL detection ignores dialect hints inside literal values", () => {
     /ambiguous/,
   );
 });
+
+test("PostgreSQL unsupported implicit REFERENCES grammar fails instead of inventing keys", () => {
+  assert.throws(
+    () =>
+      importSchema(
+        "CREATE TABLE child (id INT REFERENCES parent); CREATE TABLE parent (id INT PRIMARY KEY);",
+        "postgresql",
+      ),
+    /Syntax error/,
+  );
+});

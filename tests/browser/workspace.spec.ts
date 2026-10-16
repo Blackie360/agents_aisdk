@@ -202,3 +202,36 @@ test("personal xAI key is masked, opt-in, absent from storage and exports, and c
   await expect(key).toHaveValue("");
   await page.screenshot({ path: "test-results/xai-byok.png", fullPage: true });
 });
+
+test("a delayed earlier file cannot overwrite a newer selection", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const read = File.prototype.text;
+    File.prototype.text = async function () {
+      const text = await read.call(this);
+      if (this.name === "slow.sql")
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      return text;
+    };
+  });
+  await page.goto("/");
+  const upload = page.getByLabel("Upload schema file");
+  await upload.setInputFiles({
+    name: "slow.sql",
+    mimeType: "text/plain",
+    buffer: Buffer.from("old selection"),
+  });
+  await upload.setInputFiles({
+    name: "new.sql",
+    mimeType: "text/plain",
+    buffer: Buffer.from("new selection"),
+  });
+  await expect(page.getByLabel("Schema source", { exact: true })).toHaveValue(
+    "new selection",
+  );
+  await page.waitForTimeout(700); // Exercise completion of the deliberately delayed older read.
+  await expect(page.getByLabel("Schema source", { exact: true })).toHaveValue(
+    "new selection",
+  );
+});

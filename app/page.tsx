@@ -48,11 +48,14 @@ export default function HomePage() {
       setError("File exceeds 200 KB.");
       return;
     }
+    const version = generation.current;
     try {
-      setInput(await f.text());
+      const content = await f.text();
+      if (version !== generation.current) return;
+      setInput(content);
       setFormat("auto");
     } catch {
-      setError("Could not read this file.");
+      if (version === generation.current) setError("Could not read this file.");
     }
   }
   async function visualize() {
