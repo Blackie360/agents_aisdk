@@ -92,7 +92,7 @@ export default function HomePage() {
           ...(model.trim() ? { model: model.trim() } : {}),
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         }),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(65_000),
       });
       const data = await readApiResponse(response);
       if (typeof data.explanation !== "string" || !data.explanation.trim())

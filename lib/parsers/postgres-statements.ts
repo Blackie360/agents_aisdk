@@ -5,7 +5,12 @@ export function postgresStatements(source: string) {
     words: string[] = [],
     i = 0;
   const flush = () => {
-    if (words[0] === "copy" && /\bfrom\s+stdin\b/i.test(text))
+    if (
+      words[0] === "copy" &&
+      words.some(
+        (word, index) => word === "from" && words[index + 1] === "stdin",
+      )
+    )
       throw new Error(
         "COPY FROM STDIN data dumps are unsupported. Export the schema only (pg_dump --schema-only).",
       );
@@ -87,7 +92,7 @@ export function postgresStatements(source: string) {
         throw new Error(
           "Unquoted SQL routine bodies are unsupported. Use a schema-only export or dollar-quoted function bodies.",
         );
-      if (words.length < 8) words.push(word.toLowerCase());
+      words.push(word.toLowerCase());
       text += word;
       i += word.length;
       continue;

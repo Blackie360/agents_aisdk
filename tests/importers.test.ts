@@ -351,3 +351,12 @@ test("COPY payloads cannot introduce fake tables or hide later DDL", () => {
     /COPY FROM STDIN/,
   );
 });
+
+test("quoted COPY output text cannot be mistaken for stdin data", () => {
+  const schema = importSchema(
+    "COPY (SELECT 'from stdin') TO STDOUT; CREATE TABLE real(id int);",
+    "postgresql",
+  );
+  assert.equal(schema.tables.length, 1);
+  assert.equal(schema.tables[0].name, "real");
+});
