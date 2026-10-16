@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SchemaMind - Database Schema Visualizer",
-  description: "Visualize and understand your database with AI",
+  description:
+    "Explore SQL, ORM and document schemas. Interactive diagrams, field details and portable exports.",
 };
 
 export default function RootLayout({
@@ -13,9 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased dark">
-        {children}
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

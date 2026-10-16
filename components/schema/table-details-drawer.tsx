@@ -1,104 +1,99 @@
-'use client';
-
+"use client";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
-import { Table } from '@/lib/types/schema';
-
-interface TableDetailsDrawerProps {
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { Column, Table } from "@/lib/types/schema";
+function Fields({
+  columns,
+  document,
+}: {
+  columns: Column[];
+  document: boolean;
+}) {
+  return (
+    <ul className="space-y-3">
+      {columns.map((c) => (
+        <li key={c.name} className="border-l pl-3 py-1">
+          <div className="font-mono text-sm break-all">
+            {c.name} <span className="text-teal-700">{c.type}</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {document
+              ? c.required
+                ? "Required property"
+                : "Optional property"
+              : c.primaryKey
+                ? "Primary key member"
+                : "Column"}{" "}
+            · {c.nullable ? "Null allowed" : "Not nullable"}
+            {c.unique ? " · Unique" : ""}
+          </p>
+          {c.foreignKey && (
+            <p className="text-xs mt-1">
+              References {c.foreignKey.table}.{c.foreignKey.column}
+            </p>
+          )}
+          {c.defaultValue !== undefined && (
+            <p className="text-xs mt-1 break-all">Default: {c.defaultValue}</p>
+          )}
+          {c.description && <p className="text-xs mt-1">{c.description}</p>}
+          {c.children && (
+            <div className="mt-3">
+              <Fields columns={c.children} document={document} />
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+export function TableDetailsDrawer({
+  table,
+  open,
+  onClose,
+}: {
   table: Table | null;
   open: boolean;
   onClose: () => void;
-}
-
-export function TableDetailsDrawer({ table, open, onClose }: TableDetailsDrawerProps) {
+}) {
   if (!table) return null;
-
   return (
-    <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+    <Sheet
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) onClose();
+      }}
+    >
+      <SheetContent className="sm:max-w-[520px] overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="font-mono text-xl">{table.name}</SheetTitle>
-          {table.description && (
-            <p className="text-sm text-muted-foreground mt-1">{table.description}</p>
-          )}
+          <SheetTitle>{table.name}</SheetTitle>
+          <SheetDescription>
+            {table.kind === "document"
+              ? "Document properties and nested structure"
+              : "Table fields and declared keys"}
+          </SheetDescription>
         </SheetHeader>
-
-        <div className="mt-6 space-y-6">
-          <div>
-            <h3 className="font-semibold mb-3 text-lg">Columns</h3>
-            <div className="space-y-2">
-              {table.columns.map((col) => (
-                <div key={col.name} className="border-b border-border py-3 last:border-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-medium text-sm">{col.name}</span>
-                    <Badge variant="secondary" className="text-xs">{col.type}</Badge>
-                    {col.primaryKey && <Badge className="text-xs bg-yellow-500/20 text-yellow-500 border-yellow-500/30">PK</Badge>}
-                    {col.foreignKey && (
-                      <Badge variant="outline" className="text-xs bg-blue-500/20 text-blue-500 border-blue-500/30">
-                        FK → {col.foreignKey.table}.{col.foreignKey.column}
-                      </Badge>
-                    )}
-                    {col.unique && <Badge variant="outline" className="text-xs">UNIQUE</Badge>}
-                    {col.indexed && <Badge variant="outline" className="text-xs">INDEXED</Badge>}
-                    {col.nullable ? (
-                      <Badge variant="outline" className="text-xs text-muted-foreground">nullable</Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs">required</Badge>
-                    )}
-                  </div>
-                  {col.defaultValue && (
-                    <div className="mt-1 text-xs text-muted-foreground font-mono">
-                      Default: {col.defaultValue}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h3 className="font-semibold mb-3 text-lg">AI Insights</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <span className="text-primary mt-1">•</span>
-                <span>This table stores {table.name === 'users' ? 'user account information' : table.name === 'posts' ? 'blog post content' : 'comment data'}.</span>
-              </li>
-              {table.columns.some(col => col.foreignKey) && (
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>
-                    Related to{' '}
-                    {table.columns
-                      .filter(col => col.foreignKey)
-                      .map(col => col.foreignKey!.table)
-                      .filter((v, i, a) => a.indexOf(v) === i)
-                      .join(', ')}{' '}
-                    through foreign key relationships.
-                  </span>
-                </li>
-              )}
-              {table.columns.some(col => col.indexed) ? (
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Indexes are present for optimized query performance.</span>
-                </li>
-              ) : (
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Consider adding indexes on frequently queried columns for better performance.</span>
-                </li>
-              )}
-            </ul>
-          </div>
+        <div className="mt-6">
+          <Fields
+            columns={table.columns}
+            document={table.kind === "document"}
+          />
         </div>
+        {table.primaryKey.length > 0 && (
+          <p className="text-xs mt-5">
+            Primary key: ({table.primaryKey.join(", ")})
+          </p>
+        )}
+        {table.uniqueKeys.map((k, i) => (
+          <p className="text-xs mt-2" key={i}>
+            Unique key: ({k.join(", ")})
+          </p>
+        ))}
       </SheetContent>
     </Sheet>
   );
 }
-
-

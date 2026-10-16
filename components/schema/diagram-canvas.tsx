@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 import {
   ReactFlow,
+  MarkerType,
   Background,
   Controls,
   MiniMap,
@@ -10,10 +11,10 @@ import {
   useEdgesState,
   Node,
   Edge,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { TableNode } from './table-node';
-import { Table } from '@/lib/types/schema';
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { TableNode } from "./table-node";
+import { Table } from "@/lib/types/schema";
 
 const nodeTypes = { table: TableNode };
 
@@ -23,7 +24,11 @@ interface DiagramCanvasProps {
   onNodeClick: (table: Table) => void;
 }
 
-export function DiagramCanvas({ nodes: initialNodes, edges: initialEdges, onNodeClick }: DiagramCanvasProps) {
+export function DiagramCanvas({
+  nodes: initialNodes,
+  edges: initialEdges,
+  onNodeClick,
+}: DiagramCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
@@ -41,23 +46,25 @@ export function DiagramCanvas({ nodes: initialNodes, edges: initialEdges, onNode
         onEdgesChange={onEdgesChange}
         onNodeClick={(_, node) => onNodeClick(node.data as unknown as Table)}
         nodeTypes={nodeTypes}
+        nodesConnectable={false}
+        deleteKeyCode={null}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         defaultEdgeOptions={{
-          type: 'smoothstep',
-          animated: true,
+          type: "smoothstep",
+          markerEnd: { type: MarkerType.ArrowClosed },
+          animated: false,
           style: { strokeWidth: 2 },
         }}
       >
-        <Background color="#374151" gap={16} />
+        <Background color="#ced8cf" gap={16} />
         <Controls />
-        <MiniMap 
-          nodeColor="#4B5563"
-          maskColor="rgba(0, 0, 0, 0.5)"
+        <MiniMap
+          nodeColor="#8bb6a0"
+          maskColor="rgba(235, 242, 235, 0.7)"
           className="bg-card border border-border"
         />
       </ReactFlow>
     </div>
   );
 }
-

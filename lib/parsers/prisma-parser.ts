@@ -1,203 +1,98 @@
-import { getSchema, Model, Field, Attribute } from '@mrleebo/prisma-ast';
-import { Schema, Table, Column, Relationship } from '@/lib/types/schema';
-import { nanoid } from 'nanoid';
-
-/**
- * Parse Prisma schema content into structured Schema format
- * Extracts models, fields, relations, and constraints
- */
+import { getSchema } from "@mrleebo/prisma-ast";
+import { emptySchema, relation, table, warn } from "../importers/model";
+import { Schema } from "../types/schema";
+const arg = (attr: any, key: string) =>
+  attr?.args?.find((a: any) => a.value?.key === key)?.value.value;
+const fields = (v: any): string[] =>
+  (v?.args ?? []).map((a: any) => (typeof a === "string" ? a : a.name));
 export function parsePrismaToSchema(content: string): Schema {
-  try {
-    const ast = getSchema(content);
-    const tables: Table[] = [];
-    const relationships: Relationship[] = [];
-    const relationMap = new Map<string, { field: string; target: string; relationName?: string }[]>();
-
-    // First pass: Extract all models and their fields
-    ast.list.forEach((item) => {
-      if (item.type === 'model') {
-        const model = item as Model;
-        const columns: Column[] = [];
-        const modelRelations: { field: string; target: string; relationName?: string }[] = [];
-
-        model.properties.forEach((prop) => {
-          if (prop.type === 'field') {
-            const field = prop as Field;
-            const column: Column = {
-              name: field.name,
-              type: extractFieldType(field),
-              nullable: field.optional || false,
-              primaryKey: false,
-              unique: false,
-              defaultValue: extractDefaultValue(field),
-            };
-
-            // Check for attributes (primary key, unique, etc.)
-            field.attributes?.forEach((attr) => {
-              if (attr.name === 'id' || attr.name === '@id') {
-                column.primaryKey = true;
-              }
-              if (attr.name === 'unique' || attr.name === '@unique') {
-                column.unique = true;
-              }
-              if (attr.name === 'index' || attr.name === '@index') {
-                column.indexed = true;
-              }
-              if (attr.name === 'relation' || attr.name === '@relation') {
-                // Extract relation information
-                const relationName = attr.args?.find((arg: any) => arg.name === 'name')?.value as string;
-                const fields = attr.args?.find((arg: any) => arg.name === 'fields')?.value as string[];
-                const references = attr.args?.find((arg: any) => arg.name === 'references')?.value as string[];
-                
-                if (fields && references && references.length > 0) {
-                  // This is a foreign key relation
-                  const targetModel = findModelByField(ast, references[0]);
-                  if (targetModel) {
-                    column.foreignKey = {
-                      table: targetModel,
-                      column: references[0],
-                    };
-                    modelRelations.push({
-                      field: fields[0],
-                      target: targetModel,
-                      relationName,
-                    });
-                  }
-                }
-              }
-            });
-
-            columns.push(column);
-          }
-        });
-
-        tables.push({
-          id: model.name,
-          name: model.name,
-          columns,
-        });
-
-        // Store relations for second pass
-        if (modelRelations.length > 0) {
-          relationMap.set(model.name, modelRelations);
-        }
+  const ast = getSchema(content);
+  const schema = emptySchema("prisma");
+  if (
+    ast.list.some(
+      (x: any) =>
+        x.type === "datasource" &&
+        x.assignments?.some(
+          (a: any) => a.key === "provider" && a.value === '"mongodb"',
+        ),
+    ) ||
+    ast.list.some((x: any) => x.type === "type")
+  )
+    throw new Error(
+      "Prisma MongoDB/composite types are not supported yet. Use document JSON Schema for a nested document view.",
+    );
+  const models = ast.list.filter((x: any) => x.type === "model") as any[];
+  const modelNames = new Set(models.map((m) => m.name));
+  const enums = new Set(
+    ast.list.filter((x: any) => x.type === "enum").map((x: any) => x.name),
+  );
+  if (enums.size)
+    warn(schema, "Enum type names are preserved; enum values are not modeled.");
+  for (const model of models) {
+    const t = table(model.name);
+    schema.tables.push(t);
+    for (const f of model.properties) {
+      if (f.type === "attribute") {
+        if (f.name === "id") t.primaryKey = fields(f.args?.[0]?.value);
+        else if (f.name === "unique")
+          t.uniqueKeys.push(fields(f.args?.[0]?.value));
+        else
+          warn(schema, `${model.name}: @@${f.name} semantics are not modeled.`);
+        continue;
       }
-    });
-
-    // Second pass: Build relationships
-    relationMap.forEach((relations, sourceModel) => {
-      relations.forEach((rel) => {
-        // Find the reverse relation
-        const targetModel = ast.list.find(
-          (item) => item.type === 'model' && (item as Model).name === rel.target
-        ) as Model | undefined;
-
-        if (targetModel) {
-          // Determine relationship type
-          const relationType = determineRelationType(tables, sourceModel, rel.target, rel.field);
-          
-          relationships.push({
-            id: nanoid(),
-            from: { table: sourceModel, column: rel.field },
-            to: { table: rel.target, column: rel.field },
-            type: relationType,
-          });
-        }
+      if (f.type !== "field") continue;
+      if (modelNames.has(f.fieldType)) {
+        const rel = f.attributes?.find((a: any) => a.name === "relation");
+        const local = fields(arg(rel, "fields")),
+          refs = fields(arg(rel, "references"));
+        if (local.length) relation(schema, t.id, local, f.fieldType, refs);
+        continue; // Navigation properties are not physical columns.
+      }
+      const attrs = f.attributes ?? [];
+      const def = attrs.find((a: any) => a.name === "default")?.args?.[0]
+        ?.value;
+      t.columns.push({
+        name: f.name,
+        type: String(f.fieldType) + (f.array ? "[]" : ""),
+        nullable: !!f.optional,
+        primaryKey: false,
+        defaultValue:
+          def === undefined
+            ? undefined
+            : typeof def === "object"
+              ? JSON.stringify(def)
+              : String(def),
       });
-    });
-
-    return {
-      tables,
-      relationships,
-      metadata: {
-        database: 'prisma',
-        version: '1.0.0',
-      },
-    };
-  } catch (error) {
-    throw new Error(`Failed to parse Prisma schema: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-/**
- * Extract field type from Prisma field definition
- */
-function extractFieldType(field: Field): string {
-  if (typeof field.fieldType === 'string') {
-    return field.fieldType;
-  }
-  // Handle array types
-  if (Array.isArray(field.fieldType)) {
-    return field.fieldType.join('[]');
-  }
-  return 'unknown';
-}
-
-/**
- * Extract default value from field attributes
- */
-function extractDefaultValue(field: Field): string | undefined {
-  const defaultAttr = field.attributes?.find((attr) => attr.name === 'default' || attr.name === '@default');
-  if (defaultAttr) {
-    const value = defaultAttr.args?.[0]?.value;
-    if (typeof value === 'string') {
-      return value;
-    }
-    if (value && typeof value === 'object' && 'name' in value) {
-      return (value as any).name; // Handle function calls like now(), uuid(), etc.
+      if (attrs.some((a: any) => a.name === "id")) t.primaryKey.push(f.name);
+      if (attrs.some((a: any) => a.name === "unique"))
+        t.uniqueKeys.push([f.name]);
+      for (const a of attrs)
+        if (!["id", "unique", "default"].includes(a.name))
+          warn(
+            schema,
+            `${t.id}.${f.name}: @${a.group ? a.group + "." : ""}${a.name} semantics are not modeled.`,
+          );
     }
   }
-  return undefined;
-}
-
-/**
- * Find model name that contains a specific field
- */
-function findModelByField(ast: any, fieldName: string): string | null {
-  for (const item of ast.list) {
-    if (item.type === 'model') {
-      const model = item as Model;
-      const hasField = model.properties.some(
-        (prop) => prop.type === 'field' && (prop as Field).name === fieldName
-      );
-      if (hasField) {
-        return model.name;
-      }
+  // Explicit FK relations suffice for diagrams; inverse fields need no second edge.
+  for (const m of models)
+    for (const f of m.properties) {
+      if (f.type !== "field" || !modelNames.has(f.fieldType)) continue;
+      const a = f.attributes?.find((x: any) => x.name === "relation");
+      if (
+        !fields(arg(a, "fields")).length &&
+        !schema.relationships.some(
+          (r) => r.from.table === f.fieldType && r.to.table === m.name,
+        )
+      )
+        warn(
+          schema,
+          `${m.name}.${f.name}: implicit relation omitted; explicit foreign-key fields are required.`,
+        );
     }
-  }
-  return null;
+  warn(
+    schema,
+    "Prisma logical names are shown. Mapping/native-type semantics, indexes and relation actions are not modeled.",
+  );
+  return schema;
 }
-
-/**
- * Determine relationship type based on schema structure
- */
-function determineRelationType(
-  tables: Table[],
-  sourceTable: string,
-  targetTable: string,
-  field: string
-): 'one-to-one' | 'one-to-many' | 'many-to-many' {
-  const source = tables.find((t) => t.name === sourceTable);
-  const target = tables.find((t) => t.name === targetTable);
-  
-  if (!source || !target) {
-    return 'one-to-many'; // Default
-  }
-
-  const sourceField = source.columns.find((c) => c.name === field);
-  const targetField = target.columns.find((c) => c.name === field);
-
-  // If both sides have unique constraints, it's one-to-one
-  if (sourceField?.unique && targetField?.unique) {
-    return 'one-to-one';
-  }
-
-  // If source is unique but target is not, it's one-to-many
-  if (sourceField?.unique && !targetField?.unique) {
-    return 'one-to-many';
-  }
-
-  // Default to one-to-many
-  return 'one-to-many';
-}
-

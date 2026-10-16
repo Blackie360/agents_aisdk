@@ -1,41 +1,46 @@
-'use client';
-
-import { Handle, Position } from '@xyflow/react';
-import { Key, KeyRound } from 'lucide-react';
-import { Table } from '@/lib/types/schema';
-
-interface TableNodeProps {
-  data: Table;
-}
-
-export function TableNode({ data }: TableNodeProps) {
+"use client";
+import { Handle, Position } from "@xyflow/react";
+import { Table } from "@/lib/types/schema";
+export function TableNode({ data }: { data: Table }) {
   return (
-    <div className="bg-card border-2 border-border rounded-lg min-w-[250px] shadow-lg">
-      <Handle type="target" position={Position.Top} className="w-3 h-3" />
-      
-      <div className="px-4 py-2 bg-muted font-semibold border-b border-border">
-        {data.name}
+    <div className="bg-white border border-emerald-200 rounded-xl min-w-[270px] max-w-[340px] shadow-xl overflow-hidden">
+      {data.kind === "table" && (
+        <Handle type="target" position={Position.Right} />
+      )}
+      <div className="px-4 py-3 bg-emerald-50 border-b">
+        <p className="text-[10px] uppercase tracking-widest text-teal-700">
+          {data.kind}
+        </p>
+        <strong>{data.name}</strong>
       </div>
-      
-      <div className="p-2 space-y-1 max-h-[300px] overflow-y-auto">
-        {data.columns.map((col) => (
-          <div key={col.name} className="flex items-center gap-2 text-sm font-mono py-1">
-            <div className="flex items-center gap-1">
-              {col.primaryKey && <Key className="w-3 h-3 text-yellow-500" />}
-              {col.foreignKey && <KeyRound className="w-3 h-3 text-blue-500" />}
-            </div>
-            <span className="font-medium text-foreground">{col.name}</span>
-            <span className="text-muted-foreground text-xs">{col.type}</span>
-            {col.nullable && (
-              <span className="text-xs text-muted-foreground ml-auto">nullable</span>
-            )}
+      <div className="p-3 space-y-2">
+        {data.columns.slice(0, 10).map((c) => (
+          <div key={c.name} className="flex gap-3 text-xs font-mono">
+            <span className="text-teal-700 w-5">
+              {c.primaryKey
+                ? "PK"
+                : c.foreignKey
+                  ? "FK"
+                  : c.children
+                    ? "{}"
+                    : "·"}
+            </span>
+            <span className="truncate flex-1">{c.name}</span>
+            <span className="text-slate-500 truncate max-w-[110px]">
+              {c.type}
+              {c.nullable ? "?" : ""}
+            </span>
           </div>
         ))}
+        {data.columns.length > 10 && (
+          <p className="text-xs text-slate-500">
+            +{data.columns.length - 10} fields — select to view all
+          </p>
+        )}
       </div>
-      
-      <Handle type="source" position={Position.Bottom} className="w-3 h-3" />
+      {data.kind === "table" && (
+        <Handle type="source" position={Position.Left} />
+      )}
     </div>
   );
 }
-
-
