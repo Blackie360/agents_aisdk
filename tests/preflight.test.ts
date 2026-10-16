@@ -38,3 +38,24 @@ test("errors are readable and unresolved references remain explicit", () => {
   assert.equal(schema.tables[0].columns[1].foreignKey?.unresolved, true);
   assert.ok(schema.warnings.some((w) => w.includes("nope")));
 });
+
+test("per-editor guard reuses successful validation without caching rejections", async () => {
+  const { createPreflightGuard } = await import("../lib/importers/preflight");
+  const guard = createPreflightGuard();
+  const original = TextEncoder.prototype.encode;
+  let calls = 0;
+  TextEncoder.prototype.encode = function (input) {
+    calls++;
+    return original.call(this, input);
+  };
+  try {
+    guard("CREATE TABLE cache_test(id INT);");
+    guard("CREATE TABLE cache_test(id INT);");
+    assert.equal(calls, 1);
+    assert.throws(() => guard("x".repeat(200001)), /limit/);
+    assert.throws(() => guard("x".repeat(200001)), /limit/);
+    assert.equal(calls, 3);
+  } finally {
+    TextEncoder.prototype.encode = original;
+  }
+});

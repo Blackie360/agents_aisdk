@@ -692,3 +692,81 @@ test("small schemas fit larger while remaining inside the expanded canvas", asyn
   expect(node!.x + node!.width).toBeLessThanOrEqual(1440);
   await page.screenshot({ path: "test-results/small-schema-fit.png" });
 });
+
+test("recovery explanation persists until editing and pending drafts flush on reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByText("Draft saved in this browser.", { exact: true })
+    .waitFor();
+  const oversized = Array.from(
+    { length: 151 },
+    (_, i) => `CREATE TABLE t${i}(id INT);`,
+  ).join("\n");
+  await page.evaluate(
+    (input) =>
+      localStorage.setItem(
+        "schemamind.draft.v1",
+        JSON.stringify({ version: 1, input, format: "postgresql" }),
+      ),
+    oversized,
+  );
+  await page.reload();
+  await expect(page.getByText(/Oversized draft removed/)).toBeVisible();
+  await page.waitForTimeout(600);
+  expect(
+    await page.evaluate(() => localStorage.getItem("schemamind.draft.v1")),
+  ).toBeNull();
+  await expect(page.getByText(/Oversized draft removed/)).toBeVisible();
+  const input = page.getByLabel("Schema source", { exact: true });
+  await input.fill("CREATE TABLE fresh(id SERIAL PRIMARY KEY);");
+  await page.reload();
+  await expect(input).toHaveValue("CREATE TABLE fresh(id SERIAL PRIMARY KEY);");
+});
+
+test("accepted near-limit input is validated once per edit and saves after typing settles", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByText("Draft saved in this browser.", { exact: true })
+    .waitFor();
+  const source = Array.from(
+    { length: 100 },
+    (_, i) =>
+      `CREATE TABLE t${i} (${Array.from({ length: 24 }, (_, j) => `field_${j}_${"x".repeat(64)} TEXT`).join(",\n")});`,
+  ).join("\n");
+  await page.evaluate(() => {
+    (window as any).fullEncodes = 0;
+    (window as any).draftWrites = 0;
+    const encode = TextEncoder.prototype.encode;
+    TextEncoder.prototype.encode = function (value) {
+      if (value && value.length > 180000) (window as any).fullEncodes++;
+      return encode.call(this, value);
+    };
+    const save = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "schemamind.draft.v1") (window as any).draftWrites++;
+      return save.call(this, key, value);
+    };
+  });
+  const input = page.getByLabel("Schema source", { exact: true });
+  await input.fill(source);
+  await page.keyboard.insertText(" ");
+  await page.keyboard.insertText(" ");
+  expect(await page.evaluate(() => (window as any).fullEncodes)).toBe(3);
+  expect(await page.evaluate(() => (window as any).draftWrites)).toBe(0);
+  await expect
+    .poll(() => page.evaluate(() => (window as any).draftWrites))
+    .toBe(1);
+  await page.keyboard.insertText(" ");
+  await page.evaluate(() =>
+    window.dispatchEvent(new PageTransitionEvent("pagehide")),
+  );
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem("schemamind.draft.v1")!).input,
+    ),
+  ).toBe(await input.inputValue());
+});
