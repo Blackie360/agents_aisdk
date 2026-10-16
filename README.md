@@ -86,3 +86,5 @@ AI providers: xAI, Gemini, OpenAI, Kimi (Moonshot global API), and Claude (Anthr
 Optional deployment keys: `XAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, `ANTHROPIC_API_KEY`. Optional model overrides: `XAI_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `KIMI_MODEL`, `ANTHROPIC_MODEL`. Redeploy after changing environment variables. Without a matching server key, that provider requires BYOK. Adapter tests use mocked provider responses; they do not verify live account access or spend API credits.
 
 PostgreSQL `COPY FROM STDIN` data dumps are explicitly rejected. Use `pg_dump --schema-only`; data rows are never interpreted as schema definitions.
+
+Schema text and selected format are automatically saved as a versioned local browser draft (up to 200 KB) and restored after refresh. Drafts are not cloud-synced. Clear draft removes the saved input; browser storage failures are shown without blocking imports. API keys are never included in drafts.

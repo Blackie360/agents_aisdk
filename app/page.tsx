@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Database,
   ArrowUpRight,
@@ -21,6 +21,52 @@ import { Format, Schema, Table } from "@/lib/types/schema";
 export default function HomePage() {
   const [format, setFormat] = useState<Format | "auto">("auto");
   const [input, setInput] = useState(examples.postgresql);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftStatus, setDraftStatus] = useState("");
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("schemamind.draft.v1");
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (
+          draft.version === 1 &&
+          typeof draft.input === "string" &&
+          new TextEncoder().encode(draft.input).length <= 200_000 &&
+          (draft.format === "auto" ||
+            formats.some((f) => f.id === draft.format))
+        ) {
+          setInput(draft.input);
+          setFormat(draft.format);
+        }
+      }
+    } catch {
+      setDraftStatus("Draft storage unavailable in this browser.");
+    }
+    setDraftReady(true);
+  }, []);
+  useEffect(() => {
+    if (!draftReady) return;
+    try {
+      if (new TextEncoder().encode(input).length > 200_000) {
+        setDraftStatus("Input exceeds 200 KB; changes are not saved.");
+        return;
+      }
+      if (!input) {
+        localStorage.removeItem("schemamind.draft.v1");
+        setDraftStatus("Draft cleared.");
+      } else {
+        localStorage.setItem(
+          "schemamind.draft.v1",
+          JSON.stringify({ version: 1, input, format }),
+        );
+        setDraftStatus("Draft saved in this browser.");
+      }
+    } catch {
+      setDraftStatus(
+        "Draft could not be saved. Keep a copy before refreshing.",
+      );
+    }
+  }, [input, format, draftReady]);
   const [schema, setSchema] = useState<Schema | null>(null);
   const [diagram, setDiagram] = useState<ReturnType<
     typeof generateDiagram
@@ -245,6 +291,20 @@ export default function HomePage() {
             }}
             className="w-full h-64 resize-y rounded-xl border bg-background p-3 font-mono text-xs leading-6 focus:outline-teal-700"
           />
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span aria-live="polite">{draftStatus}</span>
+            <button
+              disabled={busy || !draftReady}
+              onClick={() => {
+                setInput("");
+                setFormat("auto");
+                clearResult();
+              }}
+              className="text-teal-700"
+            >
+              Clear draft
+            </button>
+          </div>
           <div className="flex gap-2">
             <button
               disabled={busy || !input.trim()}

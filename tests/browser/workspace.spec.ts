@@ -396,3 +396,62 @@ test("provider changes clear credentials and selected providers reach the explan
   }
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
 });
+
+test("schema drafts survive refresh, exclude keys, and can be cleared", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const source = "CREATE TABLE saved_draft (id INTEGER PRIMARY KEY);";
+  await page.getByLabel("Schema source", { exact: true }).fill(source);
+  await page.getByLabel("Input format", { exact: true }).selectOption("sqlite");
+  await expect(
+    page.getByText("Draft saved in this browser.", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Schema source", { exact: true })).toHaveValue(
+    source,
+  );
+  await expect(page.getByLabel("Input format", { exact: true })).toHaveValue(
+    "sqlite",
+  );
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await page
+    .getByLabel(/Bring your own .* API key/)
+    .fill("never-save-this-key");
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
+    "never-save-this-key",
+  );
+  await page.getByRole("button", { name: "Clear draft", exact: true }).click();
+  await expect(page.getByLabel("Schema source", { exact: true })).toHaveValue(
+    "",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("schemamind.draft.v1")),
+    )
+    .toBeNull();
+  await page.reload();
+  await expect(
+    page.getByLabel("Schema source", { exact: true }),
+  ).not.toHaveValue(source);
+});
+
+test("unavailable browser storage does not prevent importing", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new Error("unavailable");
+    };
+  });
+  await page.goto("/");
+  await expect(
+    page.getByText("Draft could not be saved. Keep a copy before refreshing."),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+});
