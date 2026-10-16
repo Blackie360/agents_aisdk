@@ -26,7 +26,7 @@ export function detectFormat(text: string): Format | null {
     if (/\bAUTOINCREMENT\b|\bWITHOUT\s+ROWID\b|\bPRAGMA\b/i.test(tokens))
       hints.push("sqlite");
     if (
-      /\b(?:BIGSERIAL|SMALLSERIAL|SERIAL|JSONB|TIMESTAMPTZ)\b|\bCREATE\s+TYPE\b/i.test(
+      /\b(?:BIGSERIAL|SMALLSERIAL|SERIAL|JSONB|TIMESTAMPTZ)\b|\bCREATE\s+(?:TYPE|EXTENSION)\b/i.test(
         tokens,
       )
     )

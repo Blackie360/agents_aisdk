@@ -3,6 +3,25 @@ import assert from "node:assert/strict";
 import { importSchema } from "../lib/importers";
 import { examples, formats } from "../lib/importers/catalog";
 import { mermaid } from "../lib/services/exports";
+import { postgresStatements } from "../lib/parsers/postgres-statements";
+test("CREATE EXTENSION selects PostgreSQL and preserves vector field dimensions", () => {
+  const schema = importSchema(
+    "CREATE EXTENSION IF NOT EXISTS vector; CREATE TABLE schema_migrations (version bigint PRIMARY KEY); CREATE TABLE docs (id uuid PRIMARY KEY, embedding vector(1536));",
+    "auto",
+  );
+  assert.equal(schema.metadata.database, "postgresql");
+  assert.equal(schema.tables.length, 2);
+  assert.equal(schema.tables[1].columns[1].type, "vector (1536)");
+  assert.ok(schema.warnings.some((w) => w.includes("create extension")));
+  assert.throws(
+    () =>
+      importSchema(
+        "CREATE TABLE x (name TEXT DEFAULT 'CREATE EXTENSION vector');",
+        "auto",
+      ),
+    /ambiguous/,
+  );
+});
 for (const { id } of formats)
   test(`${id}: example imports with explicit model kind`, () => {
     const s = importSchema(examples[id], id);
@@ -239,5 +258,85 @@ test("PostgreSQL unsupported implicit REFERENCES grammar fails instead of invent
         "postgresql",
       ),
     /Syntax error/,
+  );
+});
+
+test("PostgreSQL trigger and function statements do not discard valid tables", () => {
+  const s = importSchema(
+    `
+    CREATE EXTENSION IF NOT EXISTS vector;
+    CREATE TABLE tickets (id bigint PRIMARY KEY, local_status text);
+    CREATE OR REPLACE FUNCTION enforce_ticket_evidence() RETURNS trigger AS $body$
+    BEGIN
+      -- These are function content, not schema definitions.
+      RAISE NOTICE 'CREATE TABLE fake(id int);';
+      RETURN NEW;
+    END;
+    $body$ LANGUAGE plpgsql;
+    CREATE TRIGGER ticket_evidence_gate
+      BEFORE UPDATE OF local_status ON tickets
+      FOR EACH ROW EXECUTE FUNCTION enforce_ticket_evidence();
+    CREATE TABLE evidence (id bigint PRIMARY KEY, ticket_id bigint REFERENCES tickets(id), embedding vector(1536));
+  `,
+    "auto",
+  );
+  assert.deepEqual(
+    s.tables.map((t) => t.name),
+    ["tickets", "evidence"],
+  );
+  assert.equal(s.relationships.length, 1);
+  assert.ok(s.warnings.some((w) => w.includes("create trigger")));
+  assert.ok(s.warnings.some((w) => w.includes("procedural behavior")));
+});
+
+test("PostgreSQL statement boundaries respect quotes, dollar bodies and nested comments", () => {
+  const s = importSchema(
+    `/* outer ; /* nested ; */ */
+    CREATE TABLE "a;b" (id int PRIMARY KEY, note text DEFAULT 'x;''y');
+    -- ; CREATE TABLE fake(x int);
+    CREATE TABLE b (id int, note text);
+  `,
+    "postgresql",
+  );
+  assert.deepEqual(
+    s.tables.map((t) => t.name),
+    ["a;b", "b"],
+  );
+  assert.throws(
+    () =>
+      importSchema(
+        "CREATE TABLE x(id int); CREATE TABLE broken (id);",
+        "postgresql",
+      ),
+    /Syntax error/,
+  );
+  assert.throws(
+    () => importSchema("CREATE TABLE x(id int); /* unterminated", "postgresql"),
+    /Unterminated/,
+  );
+  assert.throws(
+    () =>
+      importSchema(
+        "CREATE FUNCTION f() RETURNS void AS $$ unterminated;",
+        "postgresql",
+      ),
+    /Unterminated/,
+  );
+  assert.throws(
+    () =>
+      importSchema(
+        "CREATE FUNCTION f() RETURNS int LANGUAGE SQL BEGIN ATOMIC CREATE TABLE fake(id int); END;",
+        "postgresql",
+      ),
+    /Unquoted SQL routine/,
+  );
+});
+
+test("statement scanner keeps escaped strings and dollar content intact", () => {
+  assert.equal(postgresStatements("SELECT $$a;b$$; SELECT 'c;d';").length, 2);
+  assert.equal(
+    postgresStatements(String.raw`SELECT E'a\';b'; CREATE TABLE real(id int);`)
+      .length,
+    2,
   );
 });

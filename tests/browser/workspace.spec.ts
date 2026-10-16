@@ -261,3 +261,22 @@ test("a delayed earlier file cannot overwrite a newer selection", async ({
     "new selection",
   );
 });
+
+test("PostgreSQL trigger scripts import tables with visible omission notes", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("Schema source", { exact: true })
+    .fill(`CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE tickets (id bigint PRIMARY KEY, local_status text, embedding vector(1536));
+CREATE TRIGGER ticket_evidence_gate BEFORE UPDATE OF local_status ON tickets FOR EACH ROW EXECUTE FUNCTION enforce_ticket_evidence();`);
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(1);
+  await expect(page.locator(".react-flow__node")).toContainText("tickets");
+  await page.getByText(/Import notes \(/).click();
+  await expect(
+    page.getByText(/Unsupported statement omitted: create trigger/),
+  ).toBeVisible();
+});
