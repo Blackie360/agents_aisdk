@@ -171,7 +171,7 @@ test("Unresolved references and skipped SQL statements produce warnings", () => 
   );
   assert.equal(s.relationships.length, 0);
   assert.ok(s.warnings.some((w) => w.includes("Unresolved")));
-  assert.ok(s.warnings.some((w) => w.includes("create index")));
+  assert.equal(s.tables[0].indexes?.[0].name, "idx");
 });
 test("Unknown FK columns fail instead of creating misleading edges", () => {
   assert.throws(

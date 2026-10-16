@@ -9,9 +9,9 @@ export const formats: {
     id: "postgresql",
     label: "PostgreSQL DDL",
     support:
-      "CREATE TABLE, composite keys, inline/table foreign keys, defaults and nullability.",
+      "CREATE TABLE, composite keys, foreign-key actions, CHECK expressions, parsed CREATE INDEX definitions, defaults and nullability.",
     limits:
-      "REFERENCES requires explicit target columns. No migrations, views, triggers, policies or index modeling. Non-table statements are skipped with warnings. Invalid table syntax, COPY data dumps and unquoted SQL routine bodies fail.",
+      "REFERENCES requires explicit target columns. No migration execution, views, triggers or policies. Unsupported index syntax and other statements are skipped with warnings. Invalid table syntax, COPY data dumps and unquoted SQL routine bodies fail.",
   },
   {
     id: "mysql",

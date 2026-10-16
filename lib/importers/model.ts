@@ -88,6 +88,8 @@ export function finalize(schema: Schema): Schema {
       from.columns.find((c) => c.name === n)!.foreignKey = {
         table: to.id,
         column: r.to.columns[i],
+        onDelete: r.onDelete,
+        onUpdate: r.onUpdate,
       };
     });
     return true;
