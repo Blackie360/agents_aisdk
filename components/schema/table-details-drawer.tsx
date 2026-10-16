@@ -35,6 +35,12 @@ function Fields({
           {c.foreignKey && (
             <p className="text-xs mt-1">
               References {c.foreignKey.table}.{c.foreignKey.column}
+              {c.foreignKey.onDelete && (
+                <> · ON DELETE {c.foreignKey.onDelete.toUpperCase()}</>
+              )}
+              {c.foreignKey.onUpdate && (
+                <> · ON UPDATE {c.foreignKey.onUpdate.toUpperCase()}</>
+              )}
             </p>
           )}
           {c.defaultValue !== undefined && (
@@ -93,6 +99,39 @@ export function TableDetailsDrawer({
             Unique key: ({k.join(", ")})
           </p>
         ))}
+        {!!table.checks?.length && (
+          <section className="mt-5">
+            <h3 className="text-sm font-medium">CHECK constraints</h3>
+            {table.checks.map((check, i) => (
+              <div key={i} className="mt-2 text-xs">
+                <p>
+                  {check.name ?? "Unnamed check"}
+                  {check.columns.length ? ` · ${check.columns.join(", ")}` : ""}
+                </p>
+                <pre className="whitespace-pre-wrap break-all mt-1">
+                  {check.expression}
+                </pre>
+              </div>
+            ))}
+          </section>
+        )}
+        {!!table.indexes?.length && (
+          <section className="mt-5">
+            <h3 className="text-sm font-medium">Indexes</h3>
+            {table.indexes.map((index, i) => (
+              <details key={i} className="mt-2 text-xs">
+                <summary className="cursor-pointer">
+                  {index.name} · {index.unique ? "Unique · " : ""}
+                  {index.method}
+                  {index.predicate ? " · Partial" : ""}
+                </summary>
+                <pre className="whitespace-pre-wrap break-all mt-2">
+                  {index.definition}
+                </pre>
+              </details>
+            ))}
+          </section>
+        )}
       </SheetContent>
     </Sheet>
   );

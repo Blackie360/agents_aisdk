@@ -11,7 +11,12 @@ export interface Column {
   type: string;
   nullable: boolean;
   primaryKey: boolean;
-  foreignKey?: { table: string; column: string };
+  foreignKey?: {
+    table: string;
+    column: string;
+    onDelete?: string;
+    onUpdate?: string;
+  };
   defaultValue?: string;
   unique?: boolean;
   indexed?: boolean;
@@ -26,10 +31,21 @@ export interface Table {
   kind: "table" | "document";
   columns: Column[];
   description?: string;
+  indexes?: {
+    name: string;
+    unique: boolean;
+    method: string;
+    columns: (string | null)[];
+    definition: string;
+    predicate?: string;
+  }[];
+  checks?: { name?: string; expression: string; columns: string[] }[];
   primaryKey: string[];
   uniqueKeys: string[][];
 }
 export interface Relationship {
+  onDelete?: string;
+  onUpdate?: string;
   [key: string]: unknown;
   id: string;
   from: { table: string; column: string; columns: string[] };

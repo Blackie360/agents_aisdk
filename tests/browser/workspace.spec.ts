@@ -506,3 +506,27 @@ test("automatic local review links findings to table details", async ({
     fullPage: true,
   });
 });
+
+test("PostgreSQL rule details display checks, indexes and delete/update actions", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("Input format").selectOption("postgresql");
+  await page
+    .getByLabel("Schema source", { exact: true })
+    .fill(
+      "CREATE TABLE p(id int PRIMARY KEY); CREATE TABLE c(id int PRIMARY KEY, pid int REFERENCES p(id) ON DELETE CASCADE ON UPDATE RESTRICT, amount int CHECK(amount > 0)); CREATE INDEX c_pid ON c(pid);",
+    );
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await page.locator(".react-flow__node").filter({ hasText: "amount" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("ON DELETE CASCADE");
+  await expect(dialog).toContainText("ON UPDATE RESTRICT");
+  await expect(dialog).toContainText("CHECK constraints");
+  await expect(dialog).toContainText("c_pid");
+  await dialog.getByText("c_pid · btree", { exact: true }).click();
+  await expect(dialog).toContainText("CREATE INDEX c_pid");
+  await page.screenshot({ path: "test-results/postgres-rules.png" });
+});

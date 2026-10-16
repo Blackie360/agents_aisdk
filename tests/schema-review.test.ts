@@ -65,3 +65,51 @@ test("document optional properties get document guidance only", () => {
   schema.tables[0].columns[0].required = true;
   assert.deepEqual(reviewSchema(schema), []);
 });
+
+test("PostgreSQL indexes, checks and actions survive import and inform review", () => {
+  const schema = importSchema(
+    `CREATE UNIQUE INDEX parent_key ON parent (id); CREATE TABLE parent (id int); CREATE TABLE child (id int PRIMARY KEY, parent_id int REFERENCES parent(id) ON DELETE CASCADE ON UPDATE RESTRICT, amount int CHECK(amount > 0), CONSTRAINT positive CHECK(id > 0)); CREATE INDEX child_fk ON child (parent_id);`,
+    "postgresql",
+  );
+  assert.equal(schema.tables[0].indexes?.[0].unique, true);
+  assert.deepEqual(schema.tables[0].uniqueKeys, [["id"]]);
+  assert.equal(schema.tables[1].checks?.length, 2);
+  assert.equal(schema.tables[1].checks?.[1].name, "positive");
+  assert.match(schema.tables[1].checks![0].expression, /amount/);
+  assert.equal(schema.relationships[0].onDelete, "cascade");
+  assert.equal(schema.tables[1].columns[1].foreignKey?.onUpdate, "restrict");
+  assert.ok(
+    !reviewSchema(schema).some(
+      (f) => f.title.includes("index") || f.title.includes("unique target"),
+    ),
+  );
+  assert.ok(
+    !schema.warnings.some(
+      (w) =>
+        w.includes("unsupported constraint check") ||
+        w.includes("omitted: create index"),
+    ),
+  );
+});
+test("partial and expression indexes remain visible but do not prove FK coverage or uniqueness", () => {
+  const schema = importSchema(
+    `CREATE TABLE parent (id int); CREATE TABLE child (id int PRIMARY KEY, pid int REFERENCES parent(id)); CREATE UNIQUE INDEX partial_key ON parent(id) WHERE id > 0; CREATE INDEX expr_idx ON child((pid + 1)); CREATE INDEX partial_fk ON child(pid) WHERE pid > 0;`,
+    "postgresql",
+  );
+  assert.deepEqual(schema.tables[0].uniqueKeys, []);
+  assert.equal(schema.tables[1].indexes?.length, 2);
+  assert.equal(schema.tables[1].indexes?.[0].columns[0], null);
+  assert.ok(
+    reviewSchema(schema).some((f) => f.title.includes("unique target")),
+  );
+  assert.ok(reviewSchema(schema).some((f) => f.title.includes("index")));
+});
+test("unresolved index targets and unsupported index syntax warn honestly", () => {
+  const schema = importSchema(
+    "CREATE TABLE x(id int); CREATE INDEX missing ON absent(id); CREATE INDEX bad ON x USING made_up (id) INCLUDE (id);",
+    "postgresql",
+  );
+  assert.ok(
+    schema.warnings.some((w) => w.includes("target table not imported")),
+  );
+});
