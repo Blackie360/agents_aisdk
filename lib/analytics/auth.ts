@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 export function adminAuthorized(req: Request): boolean {
   const expected = process.env.ADMIN_PASSWORD;
   const supplied = req.headers.get("authorization");
-  if (!expected || expected.length < 20 || !supplied?.startsWith("Bearer "))
+  if (!expected || expected.length < 8 || !supplied?.startsWith("Bearer "))
     return false;
   const value = supplied.slice(7);
   if (value.length > 512) return false;
