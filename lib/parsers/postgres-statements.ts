@@ -5,6 +5,10 @@ export function postgresStatements(source: string) {
     words: string[] = [],
     i = 0;
   const flush = () => {
+    if (words[0] === "copy" && /\bfrom\s+stdin\b/i.test(text))
+      throw new Error(
+        "COPY FROM STDIN data dumps are unsupported. Export the schema only (pg_dump --schema-only).",
+      );
     if (text.trim()) statements.push({ text, words });
     text = "";
     words = [];

@@ -8,6 +8,7 @@ import {
   FolderOpen,
   ArrowRight,
 } from "lucide-react";
+import { aiProviders, AIProvider } from "@/lib/services/ai-providers";
 import { DiagramCanvas } from "@/components/schema/diagram-canvas";
 import { TableDetailsDrawer } from "@/components/schema/table-details-drawer";
 import { generateDiagram } from "@/lib/services/diagram-generator";
@@ -29,6 +30,8 @@ export default function HomePage() {
     [error, setError] = useState("");
   const [explanation, setExplanation] = useState(""),
     [aiBusy, setAiBusy] = useState(false);
+  const [provider, setProvider] = useState<AIProvider>("xai");
+  const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const generation = useRef(0);
   const folder = useRef<HTMLInputElement>(null);
@@ -85,6 +88,8 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           schema,
+          provider,
+          ...(model.trim() ? { model: model.trim() } : {}),
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         }),
         signal: AbortSignal.timeout(30_000),
@@ -457,15 +462,53 @@ export default function HomePage() {
                 onClick={explain}
                 className="border rounded-lg px-3 py-2 text-xs"
               >
-                {aiBusy ? "Explaining…" : "Explain with Grok"}
+                {aiBusy
+                  ? "Explaining…"
+                  : `Explain with ${provider === "xai" ? "Grok" : aiProviders[provider].name}`}
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               AI explanations can be inaccurate. Check the schema.
             </p>
             <div className="mt-4 space-y-2">
+              <label
+                htmlFor="ai-provider"
+                className="block text-xs font-medium"
+              >
+                AI provider
+              </label>
+              <select
+                id="ai-provider"
+                value={provider}
+                disabled={aiBusy}
+                onChange={(e) => {
+                  setProvider(e.target.value as AIProvider);
+                  setApiKey("");
+                  setModel("");
+                  setExplanation("");
+                }}
+                className="w-full rounded-lg border bg-card px-3 py-2 text-sm"
+              >
+                {Object.entries(aiProviders).map(([id, config]) => (
+                  <option key={id} value={id}>
+                    {config.name}
+                  </option>
+                ))}
+              </select>
+              <label htmlFor="ai-model" className="block text-xs font-medium">
+                Model (optional)
+              </label>
+              <input
+                id="ai-model"
+                value={model}
+                disabled={aiBusy}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={aiProviders[provider].model}
+                maxLength={100}
+                className="w-full rounded-lg border bg-card px-3 py-2 text-sm"
+              />
               <label htmlFor="xai-key" className="block text-xs font-medium">
-                Bring your own xAI API key (optional)
+                Bring your own {aiProviders[provider].name} API key (optional)
               </label>
               <div className="flex gap-2">
                 <input
@@ -477,7 +520,7 @@ export default function HomePage() {
                   value={apiKey}
                   disabled={aiBusy}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="xai-…"
+                  placeholder="API key"
                   aria-describedby="key-privacy"
                   className="min-w-0 flex-1 rounded-lg border bg-card px-3 py-2 text-sm"
                 />
@@ -493,9 +536,10 @@ export default function HomePage() {
                 id="key-privacy"
                 className="text-xs text-muted-foreground leading-5"
               >
-                Explain sends your schema and key through this server to xAI;
-                usage is billed to your key. Your key is kept only until cleared
-                or refreshed. Leave blank to use a configured server key.
+                Explain sends your schema and key through this server to{" "}
+                {aiProviders[provider].name}; usage is billed to your key. Your
+                key is kept only until cleared or refreshed; switching providers
+                clears it. Leave blank to use a configured server key.
               </p>
             </div>
             <p

@@ -340,3 +340,14 @@ test("statement scanner keeps escaped strings and dollar content intact", () => 
     2,
   );
 });
+
+test("COPY payloads cannot introduce fake tables or hide later DDL", () => {
+  assert.throws(
+    () =>
+      importSchema(
+        "CREATE TABLE real(id int); COPY real FROM STDIN;\nCREATE TABLE fake(id int);\n\\.\nCREATE TABLE later(id int);",
+        "postgresql",
+      ),
+    /COPY FROM STDIN/,
+  );
+});

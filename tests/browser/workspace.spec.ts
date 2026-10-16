@@ -280,3 +280,119 @@ CREATE TRIGGER ticket_evidence_gate BEFORE UPDATE OF local_status ON tickets FOR
     page.getByText(/Unsupported statement omitted: create trigger/),
   ).toBeVisible();
 });
+
+test("large diagrams fit all tables and support zoom, focus and expanded view", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const source = Array.from(
+    { length: 24 },
+    (_, i) =>
+      `CREATE TABLE table_${i} (id SERIAL PRIMARY KEY, ${Array.from({ length: 12 }, (_, j) => `field_${j} TEXT`).join(",")});`,
+  ).join("\n");
+  await page.getByLabel("Schema source", { exact: true }).fill(source);
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(24);
+  const allFit = () =>
+    page.evaluate(() => {
+      const canvas = document
+        .querySelector(".react-flow")!
+        .getBoundingClientRect();
+      return [...document.querySelectorAll(".react-flow__node")].every(
+        (node) => {
+          const rect = node.getBoundingClientRect();
+          return (
+            rect.width > 0 &&
+            rect.left >= canvas.left &&
+            rect.right <= canvas.right &&
+            rect.top >= canvas.top &&
+            rect.bottom <= canvas.bottom
+          );
+        },
+      );
+    });
+  await expect.poll(allFit).toBe(true);
+  const viewport = page.locator(".react-flow__viewport");
+  const before = await viewport.getAttribute("style");
+  await page.getByRole("button", { name: "Zoom In", exact: true }).click();
+  await expect(viewport).not.toHaveAttribute("style", before!);
+  const after = await viewport.getAttribute("style");
+  await page.getByRole("button", { name: "Zoom Out", exact: true }).click();
+  await expect(viewport).not.toHaveAttribute("style", after!);
+  await page
+    .getByLabel("Find table in diagram")
+    .selectOption({ label: "table_23" });
+  await expect
+    .poll(async () => {
+      const node = await page
+        .locator(".react-flow__node")
+        .filter({ hasText: "table_23" })
+        .boundingBox();
+      const canvas = await page.locator(".react-flow").boundingBox();
+      return (
+        !!node &&
+        !!canvas &&
+        node.x >= canvas.x &&
+        node.x + node.width <= canvas.x + canvas.width
+      );
+    })
+    .toBe(true);
+  await page
+    .getByRole("button", { name: "Fit to screen", exact: true })
+    .click();
+  await expect
+    .poll(async () => {
+      const box = await page.locator(".react-flow").boundingBox();
+      const viewport = page.viewportSize()!;
+      return (
+        !!box &&
+        box.width >= viewport.width - 4 &&
+        box.height >= viewport.height - 4
+      );
+    })
+    .toBe(true);
+  await expect.poll(allFit).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Fit to screen", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Fit all", exact: true }).click();
+  await expect.poll(allFit).toBe(true);
+});
+
+test("provider changes clear credentials and selected providers reach the explanation request", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Visualize schema", exact: true })
+    .click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  const requests: any[] = [];
+  await page.route("**/api/schema-explanation", (route) => {
+    requests.push(route.request().postDataJSON());
+    return route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "AI_ACCESS_DENIED",
+        message: "Provider rejected the API key or model access.",
+      }),
+    });
+  });
+  for (const provider of ["xai", "gemini", "openai", "kimi", "claude"]) {
+    await page
+      .getByLabel("AI provider", { exact: true })
+      .selectOption(provider);
+    const key = page.getByLabel(/Bring your own .* API key/);
+    await expect(key).toHaveValue("");
+    await key.fill("synthetic-personal-key");
+    await page.getByRole("button", { name: /Explain with/ }).click();
+    await expect(page.getByRole("status")).toContainText("Provider rejected");
+    expect(requests.at(-1).provider).toBe(provider);
+    expect(requests.at(-1).apiKey).toBe("synthetic-personal-key");
+  }
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+});

@@ -136,3 +136,120 @@ test("xAI server fallback, BYOK precedence and private Responses API contract", 
     else process.env.XAI_API_KEY = originalKey;
   }
 });
+
+test("all AI providers route keys correctly, parse responses and sanitize failures", async () => {
+  const savedFetch = globalThis.fetch;
+  const fixtures = [
+    {
+      provider: "gemini",
+      host: "generativelanguage.googleapis.com",
+      header: "x-goog-api-key",
+      data: {
+        candidates: [
+          {
+            finishReason: "STOP",
+            content: { parts: [{ text: "Explanation" }] },
+          },
+        ],
+      },
+    },
+    {
+      provider: "openai",
+      host: "api.openai.com",
+      header: "authorization",
+      data: {
+        status: "completed",
+        output: [
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Explanation" }],
+          },
+        ],
+      },
+    },
+    {
+      provider: "kimi",
+      host: "api.moonshot.ai",
+      header: "authorization",
+      data: {
+        choices: [
+          { finish_reason: "stop", message: { content: "Explanation" } },
+        ],
+      },
+    },
+    {
+      provider: "claude",
+      host: "api.anthropic.com",
+      header: "x-api-key",
+      data: {
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "Explanation" }],
+      },
+    },
+  ];
+  const request = (provider: string, extra = {}) =>
+    new Request("http://local", {
+      method: "POST",
+      body: JSON.stringify({
+        provider,
+        apiKey: "personal-key",
+        schema: { tables: [], relationships: [] },
+        ...extra,
+      }),
+    });
+  try {
+    for (const fixture of fixtures) {
+      globalThis.fetch = async (url, options) => {
+        assert.equal(new URL(String(url)).hostname, fixture.host);
+        assert.equal(
+          new Headers(options!.headers).get(fixture.header),
+          fixture.header === "authorization"
+            ? "Bearer personal-key"
+            : "personal-key",
+        );
+        assert.equal(options!.redirect, "error");
+        assert.ok(!String(url).includes("personal-key"));
+        assert.ok(!String(options!.body).includes("personal-key"));
+        return Response.json(fixture.data);
+      };
+      assert.deepEqual(
+        await (await explain(request(fixture.provider))).json(),
+        { explanation: "Explanation" },
+      );
+      for (const status of [401, 403, 429, 400, 404, 500]) {
+        globalThis.fetch = async () =>
+          new Response("secret-provider-details", { status });
+        const response = await explain(request(fixture.provider));
+        const text = await response.text();
+        assert.ok(!text.includes("secret-provider-details"));
+        assert.ok(!text.includes("personal-key"));
+        assert.equal(
+          response.status,
+          status === 403
+            ? 401
+            : [400, 404, 500].includes(status)
+              ? 502
+              : status,
+        );
+      }
+    }
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      throw new Error("should not call");
+    };
+    assert.equal((await explain(request("unknown"))).status, 400);
+    assert.equal(
+      (await explain(request("openai", { model: "https://evil.example" })))
+        .status,
+      400,
+    );
+    assert.equal(calls, 0);
+    globalThis.fetch = async () => {
+      throw new DOMException("secret", "TimeoutError");
+    };
+    assert.match(await (await explain(request("xai"))).text(), /timed out/);
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
