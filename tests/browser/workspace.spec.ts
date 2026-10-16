@@ -770,3 +770,26 @@ test("accepted near-limit input is validated once per edit and saves after typin
     ),
   ).toBe(await input.inputValue());
 });
+
+test("changing format after recovery resumes persistence", async ({ page }) => {
+  await page.goto("/");
+  await page
+    .getByText("Draft saved in this browser.", { exact: true })
+    .waitFor();
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "schemamind.draft.v1",
+      JSON.stringify({
+        version: 1,
+        input: "x".repeat(200001),
+        format: "postgresql",
+      }),
+    ),
+  );
+  await page.reload();
+  await expect(page.getByText(/Oversized draft removed/)).toBeVisible();
+  await page.getByLabel("Input format").selectOption("postgresql");
+  await page.reload();
+  await expect(page.getByLabel("Input format")).toHaveValue("postgresql");
+  await expect(page.getByText(/Oversized draft removed/)).toHaveCount(0);
+});

@@ -23,10 +23,14 @@ import { createPreflightGuard } from "@/lib/importers/preflight";
 import { importInBrowser, warmParser } from "@/lib/services/browser-import";
 import { Format, Schema, Table } from "@/lib/types/schema";
 export default function HomePage() {
-  const [format, setFormat] = useState<Format | "auto">("auto");
+  const [format, setFormatState] = useState<Format | "auto">("auto");
   const [input, setInputState] = useState(examples.postgresql);
   const [validateInput] = useState(() => createPreflightGuard());
   const recoveringDraft = useRef(false);
+  function setFormat(value: Format | "auto") {
+    recoveringDraft.current = false;
+    setFormatState(value);
+  }
   function setInput(value: string) {
     recoveringDraft.current = false;
     setInputState(value);
