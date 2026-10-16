@@ -158,7 +158,7 @@ test("Invalid, empty, oversized, duplicate and unsupported input fail honestly",
   ])
     assert.throws(() => importSchema(content, "postgresql"));
   assert.throws(() => importSchema("x".repeat(200001), "prisma"), /limit/);
-  assert.throws(() => importSchema("x", "auto"), /ambiguous/);
+  assert.throws(() => importSchema("x", "auto"), /Unrecognized/);
   assert.throws(
     () => importSchema("DROP TABLE a;", "postgresql"),
     /No supported/,

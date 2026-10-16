@@ -21,11 +21,13 @@ export function SchemaReview({
       <div className="flex justify-between gap-3 items-center">
         <h2 className="font-medium">Schema review</h2>
         <span className="text-xs text-muted-foreground">
-          {warnings} warnings · {findings.length - warnings} checks
+          {warnings} {warnings === 1 ? "warning" : "warnings"} ·{" "}
+          {findings.length - warnings}{" "}
+          {findings.length - warnings === 1 ? "suggestion" : "suggestions"}
         </span>
       </div>
       <p className="text-xs text-muted-foreground mt-2">
-        Automatic · Local · No API key needed
+        Review complete · Local · No API key needed
       </p>
       {findings.length ? (
         <ul className="mt-4 grid md:grid-cols-2 gap-3">
