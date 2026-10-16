@@ -384,8 +384,11 @@ test("provider changes clear credentials and selected providers reach the explan
   });
   for (const provider of ["xai", "gemini", "openai", "kimi", "claude"]) {
     await page
-      .getByLabel("AI provider", { exact: true })
-      .selectOption(provider);
+      .getByRole("button", {
+        name: `Use ${({ xai: "xAI", gemini: "Gemini", openai: "OpenAI", kimi: "Kimi", claude: "Claude" } as Record<string, string>)[provider]}`,
+        exact: true,
+      })
+      .click();
     const key = page.getByLabel(/Bring your own .* API key/);
     await expect(key).toHaveValue("");
     await key.fill("synthetic-personal-key");
