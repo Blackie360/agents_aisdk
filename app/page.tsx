@@ -531,30 +531,39 @@ export default function HomePage() {
               AI explanations can be inaccurate. Check the schema.
             </p>
             <div className="mt-4 space-y-2">
-              <label
-                htmlFor="ai-provider"
-                className="block text-xs font-medium"
-              >
-                AI provider
-              </label>
-              <select
-                id="ai-provider"
-                value={provider}
-                disabled={aiBusy}
-                onChange={(e) => {
-                  setProvider(e.target.value as AIProvider);
-                  setApiKey("");
-                  setModel("");
-                  setExplanation("");
-                }}
-                className="w-full rounded-lg border bg-card px-3 py-2 text-sm"
-              >
-                {Object.entries(aiProviders).map(([id, config]) => (
-                  <option key={id} value={id}>
-                    {config.name}
-                  </option>
-                ))}
-              </select>
+              <fieldset>
+                <legend className="mb-2 text-xs font-medium">
+                  AI provider
+                </legend>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-3 xl:grid-cols-5">
+                  {Object.entries(aiProviders).map(([id, config]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-label={`Use ${config.name}`}
+                      aria-pressed={provider === id}
+                      disabled={aiBusy}
+                      onClick={() => {
+                        if (provider === id) return;
+                        setProvider(id as AIProvider);
+                        setApiKey("");
+                        setModel("");
+                        setExplanation("");
+                      }}
+                      className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border px-2 py-3 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:opacity-50 ${provider === id ? "border-teal-700 bg-teal-50 ring-1 ring-teal-700 text-teal-900" : "border-border bg-white hover:bg-teal-50"}`}
+                    >
+                      <img
+                        src={`/providers/${id}${["gemini", "kimi", "claude"].includes(id) ? "-color" : ""}.svg`}
+                        alt=""
+                        width={28}
+                        height={28}
+                        className={`h-7 w-7 object-contain ${id === "kimi" ? "rounded bg-slate-900 p-1" : ""}`}
+                      />
+                      <span>{config.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
               <label htmlFor="ai-model" className="block text-xs font-medium">
                 Model (optional)
               </label>
