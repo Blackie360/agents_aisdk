@@ -6,7 +6,6 @@ import {
   Download,
   Sparkles,
   FolderOpen,
-  Check,
   ArrowRight,
 } from "lucide-react";
 import { DiagramCanvas } from "@/components/schema/diagram-canvas";
@@ -132,50 +131,29 @@ export default function HomePage() {
             <h1 className="text-xl tracking-tight">
               SchemaMind<span className="text-teal-700">.</span>
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Make sense of your schema
-            </p>
           </div>
         </div>
         <a
           href="#support"
           className="text-xs text-muted-foreground hover:text-teal-800"
         >
-          Support matrix <ArrowUpRight className="inline" size={13} />
+          Supported formats <ArrowUpRight className="inline" size={13} />
         </a>
       </header>
       <section className="hero px-5 md:px-10 pt-10 pb-8">
         <div className="flex flex-wrap gap-6 items-end justify-between">
           <div>
-            <p className="eyebrow mb-4">
-              <span className="inline-block w-2 h-2 rounded-full bg-teal-600 mr-2" />
-              Less decoding. More building.
-            </p>
             <h2 className="text-4xl md:text-5xl tracking-[-.045em] leading-[1.08] font-semibold max-w-2xl">
-              See the bigger picture.
-              <br />
-              <span className="text-teal-800">Down to the last field.</span>
+              Your schema, <span className="text-teal-800">visualized.</span>
             </h2>
             <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl leading-7">
-              Turn SQL, Prisma or Drizzle into a diagram you can explore.
-              <br className="hidden md:block" />
-              Start with a file. Leave with a clearer understanding.
+              Paste SQL, Prisma or Drizzle. Explore the connections.
             </p>
-          </div>
-          <div className="flex gap-4 text-xs text-muted-foreground pb-1">
-            <span>
-              <Check size={14} className="inline text-teal-700 mr-1" />
-              No database login
-            </span>
-            <span>
-              <Check size={14} className="inline text-teal-700 mr-1" />
-              No AI required
-            </span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-7">
           <span className="text-xs text-muted-foreground mr-2">
-            Just exploring? Try an example
+            Try an example
           </span>
           {(["postgresql", "prisma", "drizzle", "json-schema"] as Format[]).map(
             (f) => (
@@ -419,18 +397,17 @@ export default function HomePage() {
                   </div>
                 </div>
                 <h3 className="text-xl tracking-tight mt-8">
-                  A little structure. A lot of clarity.
+                  Your diagram starts here
                 </h3>
                 <p className="mt-3 text-sm text-muted-foreground max-w-xs leading-6">
-                  Your diagram appears here. Move things around, follow
-                  relationships, and select a table to see every field.
+                  Add a schema, then select Visualize.
                 </p>
                 <button
                   disabled={busy}
                   onClick={visualize}
                   className="mt-5 text-sm font-medium text-teal-800 flex items-center gap-2"
                 >
-                  Visualize the current schema <ArrowRight size={16} />
+                  Try this schema <ArrowRight size={16} />
                 </button>
               </div>
             )}
@@ -458,7 +435,7 @@ export default function HomePage() {
                 </button>
               ))}
             </div>
-            <details className="mt-4 text-xs text-amber-800" open>
+            <details className="mt-4 text-xs text-amber-800">
               <summary className="cursor-pointer">
                 Import notes ({schema.warnings.length})
               </summary>
@@ -484,8 +461,7 @@ export default function HomePage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Grok explains your parsed schema. AI can be inaccurate; the parsed
-              model is the source of truth.
+              AI explanations can be inaccurate. Check the schema.
             </p>
             <div className="mt-4 space-y-2">
               <label htmlFor="xai-key" className="block text-xs font-medium">
@@ -517,11 +493,9 @@ export default function HomePage() {
                 id="key-privacy"
                 className="text-xs text-muted-foreground leading-5"
               >
-                Your key stays in this page’s memory until cleared or refreshed.
-                Clicking Explain sends it through the SchemaMind server to xAI
-                with your parsed schema. It is not saved by this app, logged or
-                included in exports. xAI usage is billed to your key. Leave
-                blank to use a server key, if configured.
+                Explain sends your schema and key through this server to xAI;
+                usage is billed to your key. Your key is kept only until cleared
+                or refreshed. Leave blank to use a configured server key.
               </p>
             </div>
             <p
@@ -534,27 +508,27 @@ export default function HomePage() {
         </section>
       )}
       <section id="support" className="px-5 md:px-10 py-8">
-        <h2 className="text-lg mb-1">Bring the schema you already use.</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Seven import formats, with clear boundaries. More languages can join
-          through dedicated importers.
-        </p>
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {formats.map((f) => (
-            <article
-              key={f.id}
-              className="border rounded-xl p-4 text-xs leading-5"
-            >
-              <h3 className="text-sm mb-2">{f.label}</h3>
-              <p className="text-muted-foreground">{f.support}</p>
-              <p className="mt-2 text-amber-800">Limits: {f.limits}</p>
-            </article>
-          ))}
-        </div>
+        <details>
+          <summary className="cursor-pointer text-sm font-medium">
+            Supported formats &amp; limits · 7 importers
+          </summary>
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3 mt-4">
+            {formats.map((f) => (
+              <article
+                key={f.id}
+                className="border rounded-xl p-4 text-xs leading-5"
+              >
+                <h3 className="text-sm mb-2">{f.label}</h3>
+                <p className="text-muted-foreground">{f.support}</p>
+                <p className="mt-2 text-amber-800">Limits: {f.limits}</p>
+              </article>
+            ))}
+          </div>
+        </details>
       </section>
       <footer className="mx-5 md:mx-10 border-t py-6 flex justify-between text-xs text-muted-foreground">
-        <span>SchemaMind · Built for the curious.</span>
-        <span>Open structure. Clear understanding.</span>
+        <span>SchemaMind</span>
+        <span>Local parsing. Optional AI.</span>
       </footer>
       <TableDetailsDrawer
         table={selected}
