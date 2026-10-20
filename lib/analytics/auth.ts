@@ -1,8 +1,15 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+/** Minimum configured ADMIN_PASSWORD length; shorter values disable admin. */
+export const ADMIN_PASSWORD_MIN_LENGTH = 16;
 export function adminAuthorized(req: Request): boolean {
   const expected = process.env.ADMIN_PASSWORD;
   const supplied = req.headers.get("authorization");
-  if (!expected || expected.length < 8 || !supplied?.startsWith("Bearer "))
+  if (
+    !expected ||
+    expected.length < ADMIN_PASSWORD_MIN_LENGTH ||
+    expected.length > 512 ||
+    !supplied?.startsWith("Bearer ")
+  )
     return false;
   const value = supplied.slice(7);
   if (value.length > 512) return false;

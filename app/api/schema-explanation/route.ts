@@ -7,10 +7,24 @@ import {
   providerText,
 } from "@/lib/services/ai-providers";
 import { readJson, BodyTooLarge } from "@/lib/services/request-body";
+import {
+  consume,
+  GLOBAL_SUBJECT,
+  ipSubject,
+  rules,
+} from "@/lib/security/rate-limit";
+import { schemaSizeError } from "@/lib/security/schema-limits";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-const reply = (body: object, status = 200) =>
-  Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+const reply = (
+  body: object,
+  status = 200,
+  headers: Record<string, string> = {},
+) =>
+  Response.json(body, {
+    status,
+    headers: { "Cache-Control": "no-store", ...headers },
+  });
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   if (
@@ -27,23 +41,50 @@ export async function POST(req: Request) {
     })()
   )
     return reply({ message: "Cross-origin requests are not allowed." }, 403);
+  // Burst limit for every caller, before the body is read.
+  const ip = ipSubject(req);
+  const burst = await consume([{ rule: rules.explainBurst(), subject: ip }]);
+  if (burst.status === "limited")
+    return reply(
+      {
+        message: "Too many explanation requests. Wait a minute and try again.",
+      },
+      429,
+      { "Retry-After": String(burst.retryAfter) },
+    );
   let tracked = false;
   let succeeded = false;
   try {
     const body = await readJson(req);
-    const { schema } = body ?? {};
+    if (!body || typeof body !== "object" || Array.isArray(body))
+      return reply({ message: "Invalid schema." }, 400);
+    const { schema } = body;
     if (
       !schema ||
       !Array.isArray(schema.tables) ||
       !Array.isArray(schema.relationships)
     )
       return reply({ message: "Invalid schema." }, 400);
-    const provider = body.provider ?? "xai";
+    const tooLarge = schemaSizeError(schema);
+    if (tooLarge) return reply({ message: tooLarge }, 413);
+    const supplied = Object.hasOwn(body, "apiKey");
+    // Only a caller paying with their own key may choose provider and model.
+    // When the server key pays, body.provider and body.model are ignored.
+    const provider = supplied
+      ? (body.provider ?? "xai")
+      : process.env.SERVER_AI_PROVIDER || "xai";
     if (typeof provider !== "string" || !Object.hasOwn(aiProviders, provider))
-      return reply({ message: "Choose a supported AI provider." }, 400);
+      return supplied
+        ? reply({ message: "Choose a supported AI provider." }, 400)
+        : reply(
+            {
+              message:
+                "The server AI provider is misconfigured. Enter your own API key to continue.",
+            },
+            503,
+          );
     tracked = true;
     const config = aiProviders[provider as AIProvider];
-    const supplied = Object.hasOwn(body, "apiKey");
     const key = supplied ? body.apiKey : process.env[config.keyEnv];
     if (
       supplied &&
@@ -60,9 +101,43 @@ export async function POST(req: Request) {
         },
         503,
       );
-    const model = body.model || process.env[config.modelEnv] || config.model;
+    const model = supplied
+      ? body.model || process.env[config.modelEnv] || config.model
+      : process.env[config.modelEnv] || config.model;
     if (typeof model !== "string" || !/^[a-zA-Z0-9._:-]{1,100}$/.test(model))
       return reply({ message: "Enter a valid model ID." }, 400);
+    if (!supplied) {
+      // Server key pays: enforce the per-IP daily cap, then the global daily
+      // cap (so one capped IP cannot drain the global allowance), in the
+      // shared store, and fail closed if the store is unavailable.
+      let daily =
+        burst.status === "unavailable"
+          ? burst
+          : await consume([{ rule: rules.serverKeyDailyPerIp(), subject: ip }]);
+      if (daily.status === "ok")
+        daily = await consume([
+          { rule: rules.serverKeyDailyGlobal(), subject: GLOBAL_SUBJECT },
+        ]);
+      if (daily.status === "unavailable")
+        return reply(
+          {
+            code: "SERVER_KEY_UNAVAILABLE",
+            message:
+              "Free explanations are unavailable right now. Enter your own API key to continue.",
+          },
+          503,
+        );
+      if (daily.status === "limited")
+        return reply(
+          {
+            code: "SERVER_KEY_LIMIT",
+            message:
+              "Free explanations have reached today's limit. Enter your own API key to keep going, or try again tomorrow.",
+          },
+          429,
+          { "Retry-After": String(daily.retryAfter) },
+        );
+    }
     const request = providerRequest(provider as AIProvider, key, model, schema);
     const response = await fetch(request.url, {
       method: "POST",

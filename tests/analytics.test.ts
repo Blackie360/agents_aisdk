@@ -33,7 +33,9 @@ test("admin fails closed without a valid configured password, and protects data"
     assert.equal(adminAuthorized(request("")), false);
     process.env.ADMIN_PASSWORD = "short";
     assert.equal(adminAuthorized(request("short")), false);
-    process.env.ADMIN_PASSWORD = "test-key";
+    process.env.ADMIN_PASSWORD = "fifteen-chars-x";
+    assert.equal(adminAuthorized(request("fifteen-chars-x")), false);
+    process.env.ADMIN_PASSWORD = "sixteen-chars-ok";
     assert.equal((await GET(request("wrong"))).status, 401);
     const good = request(process.env.ADMIN_PASSWORD);
     assert.equal(adminAuthorized(good), true);
@@ -109,8 +111,12 @@ test("Neon writes are parameterized, deduplicated and fail open; AI is server co
       }),
     );
     assert.equal(response.status, 503);
-    assert.equal(queries[1].params[1], "explanation");
-    assert.equal(queries[1].params[2], "failure");
+    const usageInsert = queries
+      .slice(1)
+      .find((q) => String(q.query).includes("schemamind_usage_events"));
+    assert.ok(usageInsert);
+    assert.equal(usageInsert.params[1], "explanation");
+    assert.equal(usageInsert.params[2], "failure");
     assert.equal(JSON.stringify(queries).includes("tables"), false);
     assert.deepEqual((await readUsage()).totals, [
       { kind: "explanation", outcome: "failure", count: 1 },
