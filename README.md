@@ -2,7 +2,14 @@
 
 Explore database and ORM schema files without connecting to a live database. SchemaMind 0.2 turns supported definitions into interactive diagrams, field details and portable exports. Document schemas use a nested structure view rather than invented relational edges.
 
+Live at https://schema.blackielabs.com · Source: https://github.com/Blackie360/schemamind (renamed from `Blackie360/agents_aisdk`; old GitHub URLs redirect). The Vercel project keeps its original name, `agents-aisdk`, so its `agents-aisdk*.vercel.app` deployment URLs are unchanged.
+
 ## Run locally
+
+```sh
+git clone https://github.com/Blackie360/schemamind.git
+cd schemamind
+```
 
 Requires Node.js **22.12+** (tested on 24) and npm. No AI or database credentials are needed.
 
