@@ -1,9 +1,13 @@
 /** Split PostgreSQL scripts without treating quoted function bodies as DDL. */
 export function postgresStatements(source: string) {
-  const statements: { text: string; words: string[] }[] = [];
+  const statements: { text: string; words: string[]; offset: number }[] = [];
   let text = "",
     words: string[] = [],
-    i = 0;
+    i = 0,
+    // Source index where the current statement's text begins. Comments are
+    // replaced by spaces with their line breaks kept, so a line/column inside
+    // a statement maps back to the source.
+    begin = 0;
   const flush = () => {
     if (
       words[0] === "copy" &&
@@ -14,7 +18,7 @@ export function postgresStatements(source: string) {
       throw new Error(
         "COPY FROM STDIN data dumps are unsupported. Export the schema only (pg_dump --schema-only).",
       );
-    if (text.trim()) statements.push({ text, words });
+    if (text.trim()) statements.push({ text, words, offset: begin });
     text = "";
     words = [];
   };
@@ -26,6 +30,7 @@ export function postgresStatements(source: string) {
       continue;
     }
     if (source.startsWith("/*", i)) {
+      const start = i;
       let depth = 1;
       i += 2;
       while (i < source.length && depth) {
@@ -38,7 +43,7 @@ export function postgresStatements(source: string) {
         } else i++;
       }
       if (depth) throw new Error("Unterminated SQL block comment.");
-      text += " ";
+      text += " " + "\n".repeat(source.slice(start, i).split("\n").length - 1);
       continue;
     }
     const char = source[i];
@@ -100,6 +105,7 @@ export function postgresStatements(source: string) {
     if (char === ";") {
       flush();
       i++;
+      begin = i;
       continue;
     }
     text += char;

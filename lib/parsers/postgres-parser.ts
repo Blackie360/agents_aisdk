@@ -1,11 +1,47 @@
 import { parse, toSql } from "pgsql-ast-parser";
-import { emptySchema, relation, table, warn } from "../importers/model";
+import {
+  emptySchema,
+  lineAndColumn,
+  relation,
+  syntaxError,
+  table,
+  warn,
+} from "../importers/model";
 import { Schema } from "../types/schema";
 import { postgresStatements } from "./postgres-statements";
 // PostgreSQL only. Kept apart from MySQL/SQLite so the browser loads one parser.
 const qualified = (n: any) =>
   [n.schema ?? n.db, n.name ?? n.table].filter(Boolean).join(".");
 const names = (xs: any[] = []) => xs.map((x) => x.name ?? x.column);
+/** Parse one statement; report syntax errors at their position in the whole input. */
+function parseAt(content: string, statement: { text: string; offset: number }) {
+  try {
+    return parse(statement.text) as any[];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const at = message.match(/line\s+(\d+)\s+col(?:umn)?\s+(\d+)/i);
+    if (!at) throw error;
+    const base = lineAndColumn(content, statement.offset);
+    const line = Number(at[1]),
+      column = Number(at[2]);
+    const detail =
+      message
+        .match(/Unexpected ([^\n]*?)(?:\.\s|\.$|\n|$)/)?.[0]
+        ?.replace(/\s*token:/, "")
+        .replace(/\.\s*$/, "")
+        .trim()
+        .replace(/^Unexpected/, "unexpected")
+        // Drop parser token-type names: 'unexpected rparen ")"' -> 'unexpected ")"'.
+        .replace(/^unexpected [\w-]+ (?=")/, "unexpected ") ??
+      "unexpected input";
+    throw syntaxError(
+      "PostgreSQL",
+      base.line + line - 1,
+      line === 1 ? base.column + column - 1 : column,
+      detail,
+    );
+  }
+}
 export function parsePostgresToSchema(content: string): Schema {
   const schema = emptySchema("postgresql");
   warn(
@@ -17,7 +53,7 @@ export function parsePostgresToSchema(content: string): Schema {
     if (/^create\s+(?:unique\s+)?index\b/i.test(statement.text.trim())) {
       try {
         indexes.push({
-          ast: (parse(statement.text) as any[])[0],
+          ast: parseAt(content, statement)[0],
           definition: statement.text,
         });
       } catch {
@@ -39,7 +75,7 @@ export function parsePostgresToSchema(content: string): Schema {
       );
       continue;
     }
-    const stmt = (parse(statement.text) as any[])[0];
+    const stmt = parseAt(content, statement)[0];
     const t = table(qualified(stmt.name));
     schema.tables.push(t);
     const constraint = (c: any, fields?: string[]) => {

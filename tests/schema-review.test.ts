@@ -147,3 +147,52 @@ test("composite FK coverage accepts reordered leading columns, not gaps or expre
     ),
   );
 });
+test("unresolved references are review warnings in every format that declares them", () => {
+  const cases: [string, string][] = [
+    [
+      "postgresql",
+      "CREATE TABLE child (id int PRIMARY KEY, parent_id int REFERENCES missing_parent(id));",
+    ],
+    [
+      "mysql",
+      "CREATE TABLE child (id INT PRIMARY KEY, parent_id INT, FOREIGN KEY (parent_id) REFERENCES missing_parent(id));",
+    ],
+    [
+      "typeorm",
+      JSON.stringify([
+        {
+          name: "Member",
+          columns: {
+            id: { type: "int", primary: true },
+            teamId: { type: "int" },
+          },
+          relations: {
+            team: {
+              type: "many-to-one",
+              target: "Nope",
+              joinColumn: { name: "teamId", referencedColumnName: "id" },
+            },
+          },
+        },
+      ]),
+    ],
+  ];
+  for (const [format, source] of cases) {
+    const schema = importSchema(source, format);
+    const findings = reviewSchema(schema).filter(
+      (f) => f.title === "Unresolved reference",
+    );
+    assert.equal(findings.length, 1, format);
+    assert.equal(findings[0].level, "warning");
+    assert.match(findings[0].detail, /is not in this import/);
+    assert.ok(
+      schema.warnings.some((w) => w.startsWith("Unresolved reference")),
+    );
+  }
+  // Resolved references are not flagged.
+  assert.ok(
+    !reviewSchema(importSchema(examples.typeorm, "typeorm")).some(
+      (f) => f.title === "Unresolved reference",
+    ),
+  );
+});

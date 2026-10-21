@@ -253,3 +253,108 @@ test("all AI providers route keys correctly, parse responses and sanitize failur
     globalThis.fetch = savedFetch;
   }
 });
+
+test("bad API keys read as 'Invalid API key' per provider; model errors stay separate", async () => {
+  const savedFetch = globalThis.fetch;
+  const savedKey = process.env.XAI_API_KEY;
+  const request = (
+    provider: string,
+    extra: object = { apiKey: "sk-fake123" },
+  ) =>
+    new Request("http://local", {
+      method: "POST",
+      body: JSON.stringify({
+        provider,
+        schema: { tables: [], relationships: [] },
+        ...extra,
+      }),
+    });
+  // Shapes the providers return today (abridged); secrets must never be echoed.
+  const badKey: [string, string, number, string][] = [
+    [
+      "xai",
+      "xAI",
+      400,
+      '{"code":"Client specified an invalid argument","error":"Incorrect API key provided: sk***23. You can obtain an API key from https://console.x.ai."}',
+    ],
+    [
+      "gemini",
+      "Gemini",
+      400,
+      '{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}',
+    ],
+    [
+      "openai",
+      "OpenAI",
+      401,
+      '{"error":{"message":"Incorrect API key provided: sk-fake123.","type":"invalid_request_error","code":"invalid_api_key"}}',
+    ],
+    [
+      "claude",
+      "Claude",
+      401,
+      '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
+    ],
+    [
+      "kimi",
+      "Kimi",
+      401,
+      '{"error":{"message":"Invalid Authentication","type":"invalid_authentication_error"}}',
+    ],
+    ["xai", "xAI", 403, '{"error":"The API key sk***23 is blocked."}'],
+  ];
+  const modelErrors: [string, number, string][] = [
+    [
+      "xai",
+      404,
+      '{"error":"The model grok-nope does not exist or your team does not have access to it."}',
+    ],
+    [
+      "openai",
+      404,
+      '{"error":{"message":"The model `gpt-nope` does not exist","code":"model_not_found"}}',
+    ],
+    [
+      "openai",
+      403,
+      '{"error":{"message":"You are not allowed to sample from this model"}}',
+    ],
+    [
+      "gemini",
+      404,
+      '{"error":{"code":404,"message":"models/gemini-nope is not found for API version v1beta","status":"NOT_FOUND"}}',
+    ],
+  ];
+  try {
+    for (const [provider, name, status, body] of badKey) {
+      globalThis.fetch = async () => new Response(body, { status });
+      const response = await explain(request(provider));
+      const data = await response.json();
+      assert.equal(response.status, 401, `${provider} ${status}`);
+      assert.equal(data.code, "AI_INVALID_KEY");
+      assert.match(data.message, new RegExp(`^Invalid API key for ${name}\\.`));
+      assert.doesNotMatch(JSON.stringify(data), /sk|console\.x\.ai|x-api-key/);
+    }
+    for (const [provider, status, body] of modelErrors) {
+      globalThis.fetch = async () => new Response(body, { status });
+      const response = await explain(
+        request(provider, { apiKey: "real-looking-key", model: "some-model" }),
+      );
+      const data = await response.json();
+      assert.equal(response.status, 502, `${provider} ${status}`);
+      assert.equal(data.code, "AI_MODEL_REJECTED");
+      assert.match(data.message, /rejected the request or model/);
+      assert.doesNotMatch(data.message, /Invalid API key/);
+    }
+    // A rejected *server* key is not the visitor's fault: no "Invalid API key".
+    process.env.XAI_API_KEY = "server-test-key";
+    globalThis.fetch = async () => new Response(badKey[0][3], { status: 400 });
+    const server = await explain(request("xai", {}));
+    assert.equal(server.status, 503);
+    assert.equal((await server.json()).code, "SERVER_KEY_UNAVAILABLE");
+  } finally {
+    globalThis.fetch = savedFetch;
+    if (savedKey === undefined) delete process.env.XAI_API_KEY;
+    else process.env.XAI_API_KEY = savedKey;
+  }
+});

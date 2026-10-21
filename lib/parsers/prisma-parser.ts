@@ -1,12 +1,44 @@
 import { getSchema } from "@mrleebo/prisma-ast";
-import { emptySchema, relation, table, warn } from "../importers/model";
+import {
+  emptySchema,
+  lineAndColumn,
+  quoteToken,
+  relation,
+  syntaxError,
+  table,
+  warn,
+} from "../importers/model";
 import { Schema } from "../types/schema";
 const arg = (attr: any, key: string) =>
   attr?.args?.find((a: any) => a.value?.key === key)?.value.value;
 const fields = (v: any): string[] =>
   (v?.args ?? []).map((a: any) => (typeof a === "string" ? a : a.name));
 export function parsePrismaToSchema(content: string): Schema {
-  const ast = getSchema(content);
+  let ast;
+  try {
+    ast = getSchema(content);
+  } catch (error: any) {
+    // Chevrotain errors carry the offending token; never show their raw text.
+    const token = error?.token;
+    if (!token) throw error;
+    const atEnd = !Number.isFinite(token.startLine);
+    const where = atEnd
+      ? lineAndColumn(content, content.length)
+      : { line: token.startLine, column: token.startColumn };
+    const found =
+      !atEnd && typeof token.image === "string" && token.image
+        ? quoteToken(token.image)
+        : "end of input";
+    const message = String(error.message ?? "");
+    throw syntaxError(
+      "Prisma",
+      where.line,
+      where.column,
+      /LineBreak/.test(message)
+        ? `expected a new line before ${found} (each field and block goes on its own line)`
+        : `unexpected ${found}`,
+    );
+  }
   const schema = emptySchema("prisma");
   if (
     ast.list.some(

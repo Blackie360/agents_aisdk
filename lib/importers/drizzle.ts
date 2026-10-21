@@ -1,5 +1,12 @@
 import ts from "typescript";
-import { emptySchema, relation, table, warn } from "./model";
+import {
+  emptySchema,
+  lineAndColumn,
+  relation,
+  syntaxError,
+  table,
+  warn,
+} from "./model";
 import { Schema } from "../types/schema";
 export function drizzle(content: string): Schema {
   const source = ts.createSourceFile(
@@ -11,7 +18,18 @@ export function drizzle(content: string): Schema {
   );
   const errors = (source as unknown as { parseDiagnostics: ts.Diagnostic[] })
     .parseDiagnostics;
-  if (errors.length) throw new Error("Invalid Drizzle TypeScript syntax.");
+  if (errors.length) {
+    const first = errors[0];
+    const { line, column } = lineAndColumn(content, first.start ?? 0);
+    throw syntaxError(
+      "Drizzle TypeScript",
+      line,
+      column,
+      ts
+        .flattenDiagnosticMessageText(first.messageText, " ")
+        .replace(/\.$/, ""),
+    );
+  }
   const schema = emptySchema("drizzle");
   const aliases = new Map<string, string>();
   const builders = new Map<string, string>();

@@ -257,7 +257,7 @@ test("PostgreSQL unsupported implicit REFERENCES grammar fails instead of invent
         "CREATE TABLE child (id INT REFERENCES parent); CREATE TABLE parent (id INT PRIMARY KEY);",
         "postgresql",
       ),
-    /Syntax error/,
+    /Invalid PostgreSQL syntax at line \d+, column \d+: /,
   );
 });
 
@@ -308,7 +308,7 @@ test("PostgreSQL statement boundaries respect quotes, dollar bodies and nested c
         "CREATE TABLE x(id int); CREATE TABLE broken (id);",
         "postgresql",
       ),
-    /Syntax error/,
+    /Invalid PostgreSQL syntax at line \d+, column \d+: /,
   );
   assert.throws(
     () => importSchema("CREATE TABLE x(id int); /* unterminated", "postgresql"),

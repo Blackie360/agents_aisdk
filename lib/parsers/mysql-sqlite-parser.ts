@@ -1,5 +1,12 @@
 import sqlParser from "node-sql-parser";
-import { emptySchema, relation, table, warn } from "../importers/model";
+import {
+  emptySchema,
+  quoteToken,
+  relation,
+  syntaxError,
+  table,
+  warn,
+} from "../importers/model";
 import { Schema } from "../types/schema";
 const { Parser } = sqlParser;
 // MySQL and SQLite via node-sql-parser. Never relabel PostgreSQL as MySQL.
@@ -15,9 +22,23 @@ export function parseMysqlOrSqliteToSchema(
     schema,
     "DDL structure only: index, CHECK, generated-column, referential-action and database-specific storage semantics are not modeled. This is not a migration runner.",
   );
-  const ast = new Parser().astify(content, {
-    database: dialect === "mysql" ? "MySQL" : "SQLite",
-  });
+  let ast;
+  try {
+    ast = new Parser().astify(content, {
+      database: dialect === "mysql" ? "MySQL" : "SQLite",
+    });
+  } catch (error: any) {
+    const start = error?.location?.start;
+    if (!start) throw error;
+    throw syntaxError(
+      dialect === "mysql" ? "MySQL" : "SQLite",
+      start.line,
+      start.column,
+      typeof error.found === "string"
+        ? `unexpected ${quoteToken(error.found)}`
+        : "unexpected end of input",
+    );
+  }
   for (const stmt of (Array.isArray(ast) ? ast : [ast]) as any[]) {
     if (stmt.type !== "create" || stmt.keyword !== "table") {
       warn(
