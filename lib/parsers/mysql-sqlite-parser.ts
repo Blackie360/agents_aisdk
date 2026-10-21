@@ -13,6 +13,17 @@ const { Parser } = sqlParser;
 const qualified = (n: any) =>
   [n.schema ?? n.db, n.name ?? n.table].filter(Boolean).join(".");
 const names = (xs: any[] = []) => xs.map((x) => x.name ?? x.column);
+/** The word, number, quoted value or symbol at an offset (the parser reports one character). */
+function tokenAt(content: string, offset: unknown): string {
+  if (typeof offset !== "number") return "";
+  return (
+    content
+      .slice(offset)
+      .match(
+        /^(?:[A-Za-z_][\w$]*|\d+(?:\.\d+)?|'(?:''|[^'\n])*'?|"(?:""|[^"\n])*"?|`[^`\n]*`?|\S)/,
+      )?.[0] ?? ""
+  );
+}
 export function parseMysqlOrSqliteToSchema(
   content: string,
   dialect: "mysql" | "sqlite",
@@ -35,7 +46,7 @@ export function parseMysqlOrSqliteToSchema(
       start.line,
       start.column,
       typeof error.found === "string"
-        ? `unexpected ${quoteToken(error.found)}`
+        ? `unexpected ${quoteToken(tokenAt(content, start.offset) || error.found)}`
         : "unexpected end of input",
     );
   }

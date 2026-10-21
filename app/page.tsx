@@ -203,6 +203,8 @@ export default function HomePage() {
   // state instead of an empty placeholder while the app hydrates.
   const [drawing, setDrawing] = useState<null | "example" | "draft">("example");
   const [drawError, setDrawError] = useState("");
+  // A restored draft that no longer parses: a quiet hint, not an error.
+  const [drawHint, setDrawHint] = useState("");
   const lastDraw = useRef<() => void>(() => {});
   const [explanation, setExplanation] = useState(""),
     [aiBusy, setAiBusy] = useState(false);
@@ -238,6 +240,7 @@ export default function HomePage() {
     setError("");
     setDrawing(null);
     setDrawError("");
+    setDrawHint("");
   }
   // Latest Open file request; older reads are ignored when they finish.
   const fileRequest = useRef(0);
@@ -301,6 +304,10 @@ export default function HomePage() {
       if (kind === "example" || e instanceof ParserLoadError)
         setDrawError(
           e instanceof Error ? e.message : "Could not draw the diagram.",
+        );
+      else
+        setDrawHint(
+          "Your saved draft couldn't be drawn. Edit it or select Visualize.",
         );
     } finally {
       if (version === generation.current) setDrawing(null);
@@ -420,7 +427,7 @@ export default function HomePage() {
             </p>
           </div>
         </div>
-        <div className="example-chips flex flex-nowrap md:flex-wrap items-center gap-2 mt-3 md:mt-7 overflow-x-auto -mx-5 px-5 md:mx-0 md:px-0">
+        <div className="example-chips flex flex-nowrap md:flex-wrap items-center gap-2 mt-3 md:mt-7 overflow-x-auto -mx-5 pl-5 pr-12 md:mx-0 md:px-0">
           <span className="text-xs text-muted-foreground mr-2 shrink-0 whitespace-nowrap">
             Try an example
           </span>
@@ -770,8 +777,11 @@ export default function HomePage() {
                 <h3 className="text-xl tracking-tight mt-8">
                   Your diagram starts here
                 </h3>
-                <p className="mt-3 text-sm text-muted-foreground max-w-xs leading-6">
-                  Add a schema, then select Visualize.
+                <p
+                  className="mt-3 text-sm text-muted-foreground max-w-xs leading-6"
+                  aria-live="polite"
+                >
+                  {drawHint || "Add a schema, then select Visualize."}
                 </p>
                 <button
                   disabled={busy}

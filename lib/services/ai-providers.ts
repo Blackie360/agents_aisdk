@@ -138,3 +138,14 @@ export function classifyProviderFailure(
       : "model";
   return "other";
 }
+
+/**
+ * "a" or "an" by sound: vowels ("an OpenAI key"), and initialisms whose first
+ * letter is said with a vowel sound ("an xAI key", "an LLM"); otherwise "a".
+ */
+export function indefiniteArticle(word: string): "a" | "an" {
+  if (/^[aeiou]/i.test(word)) return "an";
+  // Spelled-out initialisms (xAI, LLM, SQL): F H L M N R S X sound like "eh-".
+  if (/^[FHLMNRSXfhlmnrsx](?=[A-Z]|$)/.test(word)) return "an";
+  return "a";
+}

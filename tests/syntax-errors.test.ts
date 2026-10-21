@@ -35,7 +35,7 @@ test("MySQL, SQLite and Drizzle syntax errors carry line and column (QA bug D)",
       "CREATE TABLE a (\n  id INT PRIMARY KEY,\n  name VARCHAR(10) NOT NUL\n);",
       "mysql",
     ),
-    'Invalid MySQL syntax at line 3, column 20: unexpected "N". Check punctuation and the selected format.',
+    'Invalid MySQL syntax at line 3, column 20: unexpected "NOT". Check punctuation and the selected format.',
   );
   assert.equal(
     shown(
@@ -71,5 +71,24 @@ test("PostgreSQL locations are absolute in multi-statement input", () => {
       "postgresql",
     ),
     /^Invalid PostgreSQL syntax at line 1, column 54:/,
+  );
+});
+
+test("SQL errors name the whole offending token, not one character (QA retest)", () => {
+  // QA's case: a missing comma; the parser reports only "n".
+  assert.equal(
+    shown(
+      "CREATE TABLE a (\n  id INTEGER PRIMARY KEY\n  name TEXT\n);",
+      "sqlite",
+    ),
+    'Invalid SQLite syntax at line 3, column 3: unexpected "name". Check punctuation and the selected format.',
+  );
+  assert.match(
+    shown("CREATE TABLE a (id INT DEFAULT 'x' 'y');", "mysql"),
+    /unexpected "'y'"/,
+  );
+  assert.match(
+    shown("CREATE TABLE a (id INT 42);", "mysql"),
+    /unexpected "42"/,
   );
 });

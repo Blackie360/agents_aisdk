@@ -141,7 +141,7 @@ test("an invalid personal key reads 'Invalid API key', not a model error (QA A)"
       json: {
         code: "AI_INVALID_KEY",
         message:
-          "Invalid API key for xAI. Check that it is a xAI key (not another provider's), copied in full and still active.",
+          "Invalid API key for xAI. Check that it is an xAI key (not another provider's), copied in full and still active.",
       },
     }),
   );
@@ -189,4 +189,70 @@ test("Visualize keeps the editor usable and says edits cancel the run (QA #7)", 
   // Generous bound for CI; measured warm runs are ~100ms.
   expect(Date.now() - started).toBeLessThan(3000);
   await expect(page.getByText(/keep editing while the diagram/)).toHaveCount(0);
+});
+
+test("a restored draft that no longer parses shows a quiet hint (QA retest)", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "schemamind.draft.v1",
+      JSON.stringify({
+        version: 1,
+        input: "CREATE TABLE broken (id INT,,);",
+        format: "postgresql",
+      }),
+    );
+  });
+  await page.goto("/");
+  await expect(source(page)).toHaveValue("CREATE TABLE broken (id INT,,);");
+  const canvas = page.locator(".canvas-panel");
+  await expect(canvas).toContainText(
+    "Your saved draft couldn't be drawn. Edit it or select Visualize.",
+  );
+  // Quiet: no error alert, and no diagram.
+  await expect(page.locator("main [role=alert]")).toHaveCount(0);
+  await expect(nodes(page)).toHaveCount(0);
+  // Editing removes the hint.
+  await source(page).fill("CREATE TABLE fixed (id INT PRIMARY KEY);");
+  await expect(canvas).toContainText("Add a schema, then select Visualize.");
+});
+
+test("at 375px the example chip row shows there is more to scroll (QA retest)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto("/");
+  await expect(nodes(page)).toHaveCount(showcase.models.length);
+  const row = page.locator(".example-chips");
+  const state = () =>
+    row.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const last = [...el.querySelectorAll("button")]
+        .at(-1)!
+        .getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return {
+        overflows: el.scrollWidth > el.clientWidth,
+        mask: style.maskImage || (style as any).webkitMaskImage,
+        lastRight: last.right,
+        fadeStart: box.right - 44,
+        viewport: innerWidth,
+      };
+    });
+  const before = await state();
+  expect(before.overflows).toBe(true);
+  // The right edge fades out, so the cut-off chip reads as "more this way".
+  expect(before.mask).toContain("linear-gradient");
+  expect(before.lastRight).toBeGreaterThan(before.viewport);
+  // Scrolled to the end, "Document" sits fully on screen, clear of the fade.
+  await row.evaluate((el) => (el.scrollLeft = el.scrollWidth));
+  const after = await state();
+  expect(after.lastRight).toBeLessThanOrEqual(after.fadeStart);
+  await expect(page.getByRole("button", { name: "Document" })).toBeInViewport({
+    ratio: 1,
+  });
+  // Desktop shows every chip without a fade.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  expect((await state()).mask).not.toContain("linear-gradient");
 });

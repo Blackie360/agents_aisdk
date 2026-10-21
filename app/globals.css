@@ -304,6 +304,19 @@ a:focus-visible {
 .example-chips {
   scrollbar-width: none;
 }
+/* Phones: the chip row scrolls sideways. Fade its right edge so a cut-off
+   chip reads as "more this way"; the extra end padding lets the last chip
+   scroll clear of the fade. */
+@media (max-width: 767px) {
+  .example-chips {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      #000 calc(100% - 44px),
+      transparent
+    );
+    mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+  }
+}
 .example-chips::-webkit-scrollbar {
   display: none;
 }

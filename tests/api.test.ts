@@ -303,6 +303,13 @@ test("bad API keys read as 'Invalid API key' per provider; model errors stay sep
     ],
     ["xai", "xAI", 403, '{"error":"The API key sk***23 is blocked."}'],
   ];
+  const article: Record<string, string> = {
+    xAI: "an",
+    OpenAI: "an",
+    Gemini: "a",
+    Kimi: "a",
+    Claude: "a",
+  };
   const modelErrors: [string, number, string][] = [
     [
       "xai",
@@ -333,6 +340,10 @@ test("bad API keys read as 'Invalid API key' per provider; model errors stay sep
       assert.equal(response.status, 401, `${provider} ${status}`);
       assert.equal(data.code, "AI_INVALID_KEY");
       assert.match(data.message, new RegExp(`^Invalid API key for ${name}\\.`));
+      assert.ok(
+        data.message.includes(`it is ${article[name]} ${name} key`),
+        data.message,
+      );
       assert.doesNotMatch(JSON.stringify(data), /sk|console\.x\.ai|x-api-key/);
     }
     for (const [provider, status, body] of modelErrors) {
@@ -357,4 +368,26 @@ test("bad API keys read as 'Invalid API key' per provider; model errors stay sep
     if (savedKey === undefined) delete process.env.XAI_API_KEY;
     else process.env.XAI_API_KEY = savedKey;
   }
+});
+
+test("indefinite articles read correctly for every provider name", async () => {
+  const { aiProviders, indefiniteArticle } =
+    await import("../lib/services/ai-providers");
+  const expected: Record<string, string> = {
+    xAI: "an",
+    Gemini: "a",
+    OpenAI: "an",
+    Kimi: "a",
+    Claude: "a",
+  };
+  for (const { name } of Object.values(aiProviders))
+    assert.equal(indefiniteArticle(name), expected[name], name);
+  for (const [word, a] of [
+    ["Anthropic", "an"],
+    ["LLM", "an"],
+    ["Mistral", "a"],
+    ["xAI", "an"],
+    ["Hugging Face", "a"],
+  ])
+    assert.equal(indefiniteArticle(word), a, word);
 });

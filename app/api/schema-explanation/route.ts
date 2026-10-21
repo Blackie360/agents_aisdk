@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   aiProviders,
   classifyProviderFailure,
+  indefiniteArticle,
   AIProvider,
   providerRequest,
   providerText,
@@ -238,7 +239,7 @@ async function handle(req: Request, ctx: Context): Promise<Response> {
           ? reply(
               {
                 code: "AI_INVALID_KEY",
-                message: `Invalid API key for ${config.name}. Check that it is a ${config.name} key (not another provider's), copied in full and still active.`,
+                message: `Invalid API key for ${config.name}. Check that it is ${indefiniteArticle(config.name)} ${config.name} key (not another provider's), copied in full and still active.`,
               },
               401,
             )
