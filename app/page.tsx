@@ -340,7 +340,7 @@ export default function HomePage() {
           <AccountMenu />
         </div>
       </header>
-      <section className="hero px-5 md:px-10 pt-10 pb-8">
+      <section className="hero px-5 md:px-10 pt-6 pb-5 md:pt-10 md:pb-8">
         <div className="flex flex-wrap gap-6 items-end justify-between">
           <div>
             <h2 className="text-4xl md:text-5xl tracking-[-.045em] leading-[1.08] font-semibold max-w-2xl">
@@ -351,7 +351,7 @@ export default function HomePage() {
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 mt-7">
+        <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-7">
           <span className="text-xs text-muted-foreground mr-2">
             Try an example
           </span>

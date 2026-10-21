@@ -261,3 +261,11 @@ a:focus-visible {
     transform: scale(0.85);
   }
 }
+
+/* Phones and small tablets: show the diagram before the input panel so the
+   first screen already has a drawn schema. Desktop order is unchanged. */
+@media (max-width: 768px) {
+  .canvas-panel {
+    order: -1;
+  }
+}

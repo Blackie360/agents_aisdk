@@ -68,3 +68,69 @@ test("the user's own schema replaces the example, and a saved draft is not overw
   );
   await expect(page.locator(".react-flow__node")).toHaveCount(0);
 });
+
+for (const size of [
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+]) {
+  test(`the example diagram is on the first screen at ${size.width}x${size.height}, before the input panel`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    await page.goto("/");
+    await expect(page.locator(".react-flow__node")).toHaveCount(
+      showcase.models.length,
+    );
+    const layout = await page.evaluate(() => {
+      const box = (s: string) =>
+        document.querySelector(s)!.getBoundingClientRect();
+      const canvas = box(".react-flow");
+      const visibleNodes = [
+        ...document.querySelectorAll(".react-flow__node"),
+      ].filter((n) => {
+        const r = n.getBoundingClientRect();
+        return (
+          r.bottom > 0 &&
+          r.top < innerHeight &&
+          r.right > 0 &&
+          r.left < innerWidth
+        );
+      }).length;
+      return {
+        scrollY,
+        canvasTop: canvas.top,
+        canvasHeight: canvas.height,
+        panelTop: box(".canvas-panel").top,
+        sourceTop: box(".source-panel").top,
+        visibleNodes,
+        overflow: document.documentElement.scrollWidth - innerWidth,
+      };
+    });
+    expect(layout.scrollY).toBe(0);
+    // The canvas starts inside the first viewport, with a usable slice of it showing.
+    expect(layout.canvasTop).toBeGreaterThanOrEqual(0);
+    expect(layout.canvasTop).toBeLessThan(size.height - 150);
+    expect(layout.canvasHeight).toBeGreaterThan(300);
+    expect(layout.visibleNodes).toBeGreaterThan(0);
+    // Mobile order: diagram first, schema input below it.
+    expect(layout.panelTop).toBeLessThan(layout.sourceTop);
+    expect(layout.overflow).toBeLessThanOrEqual(0);
+    // The input panel is still there, one scroll away.
+    await expect(page.getByLabel("Schema source", { exact: true })).toHaveValue(
+      showcase.source,
+    );
+  });
+}
+
+test("desktop keeps the input panel beside the diagram", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect(page.locator(".react-flow__node")).toHaveCount(
+    showcase.models.length,
+  );
+  const source = await page.locator(".source-panel").boundingBox();
+  const canvas = await page.locator(".canvas-panel").boundingBox();
+  expect(source!.x).toBeLessThan(canvas!.x);
+  expect(Math.abs(source!.y - canvas!.y)).toBeLessThan(1);
+  expect(canvas!.y).toBeLessThan(800);
+});
