@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
 import { neon } from "@neondatabase/serverless";
 
 // Shared, cross-instance limiter backed by the same Neon database as the usage
@@ -53,19 +54,87 @@ export const rules = {
 
 export const GLOBAL_SUBJECT = "global";
 
-/** Stable, non-reversible subject for the caller's IP. Vercel overwrites
- * x-real-ip / x-forwarded-for at its edge, so clients cannot spoof them there. */
+/**
+ * Normalize a client address to the unit a single client can control:
+ * IPv4 as-is, IPv4-mapped IPv6 (::ffff:a.b.c.d) as IPv4, and other IPv6
+ * addresses by their /64 prefix (one subscriber typically owns a whole /64,
+ * so rotating within it must not reset the limits). Anything unparseable is
+ * used verbatim (bounded), which still yields a stable bucket.
+ */
+export function ipBucket(raw: string): string {
+  let ip = raw.trim().slice(0, 100);
+  const bracketed = ip.match(/^\[([^\]]+)\]/);
+  if (bracketed) ip = bracketed[1];
+  ip = ip.replace(/%.*$/, "").toLowerCase(); // drop IPv6 zone ids
+  const kind = isIP(ip);
+  if (kind === 4) return ip;
+  if (kind !== 6) return ip;
+  const groups = expandIPv6(ip);
+  if (!groups) return ip;
+  if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff)
+    return [
+      groups[6] >> 8,
+      groups[6] & 255,
+      groups[7] >> 8,
+      groups[7] & 255,
+    ].join(".");
+  return (
+    groups
+      .slice(0, 4)
+      .map((g) => g.toString(16))
+      .join(":") + "::/64"
+  );
+}
+
+function expandIPv6(ip: string): number[] | null {
+  let text = ip;
+  const tail = text.match(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (tail) {
+    const [a, b, c, d] = tail.slice(1).map(Number);
+    text =
+      text.slice(0, tail.index) +
+      ((a << 8) | b).toString(16) +
+      ":" +
+      ((c << 8) | d).toString(16);
+  }
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
+  if (fill < 0) return null;
+  const parts = [...head, ...Array(fill).fill("0"), ...rest];
+  if (parts.length !== 8) return null;
+  const groups = parts.map((p) => parseInt(p, 16));
+  return groups.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff)
+    ? groups
+    : null;
+}
+
+const DEV_SALT = "schemamind-development-only-salt";
+
+/** Secret used to key IP hashes. Required in production (see consume). */
+function salt(): string | undefined {
+  const value = process.env.RATE_LIMIT_SALT?.trim();
+  if (value) return value;
+  return isProduction() ? undefined : DEV_SALT;
+}
+
+/** Stable, non-reversible subject for the caller's IP, keyed with the
+ * RATE_LIMIT_SALT secret. Vercel overwrites x-real-ip / x-forwarded-for at
+ * its edge, so clients cannot spoof them there. */
 export function ipSubject(req: Request): string {
   const ip =
     req.headers.get("x-real-ip")?.trim() ||
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown";
+  const key = salt();
+  // Without a salt in production, consume() refuses every check; the subject
+  // is never stored, so its value here does not matter.
+  if (!key) return "ip:unsalted";
   return (
     "ip:" +
-    createHash("sha256")
-      .update(`schemamind-rate-limit:${ip.slice(0, 100)}`)
-      .digest("hex")
-      .slice(0, 32)
+    createHmac("sha256", key).update(ipBucket(ip)).digest("hex").slice(0, 32)
   );
 }
 
@@ -75,7 +144,7 @@ export function isProduction(): boolean {
 
 /**
  * Count one hit against every check. Returns "unavailable" when the shared
- * store is missing in production or errors anywhere; callers that spend the
+ * store or RATE_LIMIT_SALT is missing in production, or the store errors; callers that spend the
  * server key must then fail closed. Local development without DATABASE_URL
  * is allowed through so the app still runs offline.
  */
@@ -84,6 +153,8 @@ export async function consume(
   now = Date.now(),
 ): Promise<LimitResult> {
   const url = process.env.DATABASE_URL;
+  // A missing salt in production is treated like a missing store: fail closed.
+  if (!salt()) return { status: "unavailable" };
   if (!url)
     return isProduction() ? { status: "unavailable" } : { status: "ok" };
   try {

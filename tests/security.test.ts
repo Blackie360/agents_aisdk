@@ -25,6 +25,7 @@ const ENV_KEYS = [
   "RATE_LIMIT_ADMIN_PER_MINUTE",
   "RATE_LIMIT_ADMIN_DAILY_PER_IP",
   "ADMIN_PASSWORD",
+  "RATE_LIMIT_SALT",
 ];
 const PERSONAL_KEY = "sk-personal-SECRET-7f3a9";
 
@@ -468,4 +469,133 @@ test("5: schema size is capped by tables, columns and relationships with 413", a
       200,
     );
   });
+});
+
+test("IPv6 clients are bucketed by /64; IPv4-mapped IPv6 counts as IPv4", async () => {
+  const { ipBucket, ipSubject } = await import("../lib/security/rate-limit");
+  const subject = (ip: string) =>
+    ipSubject(
+      new Request("https://schema.example/", { headers: { "x-real-ip": ip } }),
+    );
+  assert.equal(ipBucket("2001:db8:1:2:aaaa::1"), "2001:db8:1:2::/64");
+  assert.equal(
+    ipBucket("2001:0DB8:0001:0002:ffff:ffff:ffff:fffe"),
+    "2001:db8:1:2::/64",
+  );
+  assert.equal(ipBucket("[2001:db8:1:2::9]"), "2001:db8:1:2::/64");
+  assert.equal(ipBucket("fe80::1%eth0"), "fe80:0:0:0::/64");
+  assert.equal(ipBucket("::ffff:203.0.113.7"), "203.0.113.7");
+  assert.equal(ipBucket("::ffff:cb00:7107"), "203.0.113.7");
+  assert.equal(ipBucket("203.0.113.7"), "203.0.113.7");
+  await withEnv({ RATE_LIMIT_SALT: "test-salt-value-0123456789" }, async () => {
+    assert.equal(
+      subject("2001:db8:1:2::1"),
+      subject("2001:db8:1:2:ffff:1:2:3"),
+    );
+    assert.notEqual(subject("2001:db8:1:2::1"), subject("2001:db8:1:3::1"));
+    assert.equal(subject("::ffff:203.0.113.7"), subject("203.0.113.7"));
+    assert.notEqual(subject("203.0.113.7"), subject("203.0.113.8"));
+  });
+  // Rotating addresses inside one /64 does not reset the server-key cap.
+  await withEnv(
+    {
+      DATABASE_URL: DB,
+      XAI_API_KEY: "server-test-key",
+      RATE_LIMIT_SALT: "test-salt-value-0123456789",
+      SERVER_KEY_DAILY_PER_IP: "2",
+    },
+    async ({ calls, queries }) => {
+      assert.equal(
+        (await explain(explainRequest({}, "2001:db8:5:6::1"))).status,
+        200,
+      );
+      assert.equal(
+        (await explain(explainRequest({}, "2001:db8:5:6::2"))).status,
+        200,
+      );
+      assert.equal(
+        (await explain(explainRequest({}, "2001:db8:5:6:abcd::3"))).status,
+        429,
+      );
+      assert.equal(
+        (await explain(explainRequest({}, "2001:db8:5:7::1"))).status,
+        200,
+      );
+      assert.equal(calls.length, 3);
+      assert.ok(!JSON.stringify(queries).includes("2001:db8"));
+    },
+  );
+  // The admin limiter uses the same bucketing.
+  await withEnv(
+    {
+      DATABASE_URL: DB,
+      ADMIN_PASSWORD: "a-strong-admin-password-1234",
+      RATE_LIMIT_SALT: "test-salt-value-0123456789",
+      RATE_LIMIT_ADMIN_PER_MINUTE: "2",
+    },
+    async () => {
+      const admin = (ip: string) =>
+        adminUsage(
+          new Request("https://schema.example/api/admin/usage", {
+            headers: { authorization: "Bearer guess", "x-real-ip": ip },
+          }),
+        );
+      assert.equal((await admin("2001:db8:9:9::1")).status, 401);
+      assert.equal((await admin("2001:db8:9:9::2")).status, 401);
+      assert.equal((await admin("2001:db8:9:9::3")).status, 429);
+      assert.equal((await admin("2001:db8:9:a::1")).status, 401);
+    },
+  );
+});
+
+test("RATE_LIMIT_SALT keys the IP hash and is required in production", async () => {
+  const { ipSubject } = await import("../lib/security/rate-limit");
+  const subject = () =>
+    ipSubject(
+      new Request("https://schema.example/", {
+        headers: { "x-real-ip": "203.0.113.7" },
+      }),
+    );
+  let first = "";
+  await withEnv({ RATE_LIMIT_SALT: "salt-one-0123456789" }, async () => {
+    first = subject();
+  });
+  await withEnv({ RATE_LIMIT_SALT: "salt-two-0123456789" }, async () => {
+    assert.notEqual(subject(), first);
+  });
+  await withEnv({ RATE_LIMIT_SALT: "salt-one-0123456789" }, async () => {
+    assert.equal(subject(), first);
+  });
+  // Salt missing in production with a configured store: fail closed.
+  await withEnv(
+    {
+      VERCEL_ENV: "production",
+      DATABASE_URL: DB,
+      XAI_API_KEY: "server-test-key",
+      ADMIN_PASSWORD: "a-strong-admin-password-1234",
+    },
+    async ({ calls, queries }) => {
+      const response = await explain(explainRequest());
+      assert.equal(response.status, 503);
+      assert.equal((await response.json()).code, "SERVER_KEY_UNAVAILABLE");
+      assert.equal(calls.length, 0);
+      const admin = await adminUsage(
+        new Request("https://schema.example/api/admin/usage", {
+          headers: { authorization: "Bearer a-strong-admin-password-1234" },
+        }),
+      );
+      assert.equal(admin.status, 401);
+      assert.ok(
+        queries.every((q) => !q.query.includes("schemamind_rate_limits")),
+      );
+      // Bring-your-own-key still works.
+      assert.equal(
+        (await explain(explainRequest({ apiKey: PERSONAL_KEY }))).status,
+        200,
+      );
+      // With the salt set, the same production config serves server-key calls.
+      process.env.RATE_LIMIT_SALT = "prod-salt-0123456789";
+      assert.equal((await explain(explainRequest())).status, 200);
+    },
+  );
 });
