@@ -297,3 +297,46 @@ test("if the parser cannot download, the example shows an error with Retry", asy
   );
   await expect(alert).toHaveCount(0);
 });
+
+for (const [label, content] of [
+  ["0-byte", ""],
+  ["whitespace-only", "  \n\t\n  "],
+] as const) {
+  test(`opening a ${label} file is rejected and keeps the text, diagram and draft`, async ({
+    page,
+  }) => {
+    const mine = "CREATE TABLE mine (id INT PRIMARY KEY, name TEXT);";
+    await page.goto("/");
+    await expect(page.locator(".react-flow__node")).toHaveCount(
+      showcase.models.length,
+    );
+    const source = page.getByLabel("Schema source", { exact: true });
+    await source.fill(mine);
+    await page.getByLabel("Input format").selectOption("postgresql");
+    await page
+      .getByRole("button", { name: "Visualize schema", exact: true })
+      .click();
+    await expect(page.locator(".react-flow__node")).toHaveCount(1);
+    await expect(
+      page.getByText("Draft saved in this browser.", { exact: true }),
+    ).toBeVisible();
+    const draft = () =>
+      page.evaluate(() => localStorage.getItem("schemamind.draft.v1"));
+    const saved = await draft();
+    expect(saved).toContain("mine");
+    await page.getByLabel("Upload schema file").setInputFiles({
+      name: "empty.sql",
+      mimeType: "application/sql",
+      buffer: Buffer.from(content),
+    });
+    await expect(page.locator(".source-panel [role=alert]")).toHaveText(
+      "This file is empty.",
+    );
+    await page.waitForTimeout(700); // longer than the 400ms autosave delay
+    await expect(source).toHaveValue(mine);
+    await expect(page.getByLabel("Input format")).toHaveValue("postgresql");
+    await expect(page.locator(".react-flow__node")).toHaveCount(1);
+    await expect(page.getByText("Draft cleared.")).toHaveCount(0);
+    expect(await draft()).toBe(saved);
+  });
+}

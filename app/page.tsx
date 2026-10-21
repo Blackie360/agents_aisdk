@@ -219,21 +219,29 @@ export default function HomePage() {
     setDrawing(null);
     setDrawError("");
   }
+  // Latest Open file request; older reads are ignored when they finish.
+  const fileRequest = useRef(0);
   async function openFile(f: File) {
-    clearResult();
+    // Nothing is cleared until the file is accepted: an empty or rejected
+    // file must not wipe the editor, the diagram or the saved draft.
+    const request = ++fileRequest.current;
     if (f.size > 200_000) {
       setError("File exceeds 200 KB.");
       return;
     }
-    const version = generation.current;
     try {
       const content = await f.text();
-      if (version !== generation.current) return;
+      if (request !== fileRequest.current) return;
+      if (!content.trim()) {
+        setError("This file is empty.");
+        return;
+      }
       validateInput(content);
+      clearResult();
       setInput(content);
       setFormat("auto");
     } catch {
-      if (version === generation.current)
+      if (request === fileRequest.current)
         setError(
           "Could not import this file. Check the 200 KB and 150 entity limits.",
         );
