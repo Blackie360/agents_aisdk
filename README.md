@@ -50,6 +50,17 @@ No key is needed for imports, diagrams, exports, or builds. Missing/invalid keys
 
 A public operator exposing a shared server key must supply access and usage controls appropriate to their deployment. BYOK works without configuring a shared key. Never commit keys or paste them into source schemas.
 
+### Shared server key guardrails
+
+When a request brings no `apiKey`, the server key pays, so the client cannot choose what it spends:
+
+- `body.provider` and `body.model` are ignored. The provider is `SERVER_AI_PROVIDER` (default `xai`) and the model is that provider's model env var (for example `XAI_MODEL`) or the built-in default. Only requests that bring their own key may pick a provider and model.
+- Every `/api/schema-explanation` request is limited per IP (`RATE_LIMIT_EXPLAIN_PER_MINUTE`, default 5/min). Server-key calls also count against a per-IP daily cap (`SERVER_KEY_DAILY_PER_IP`, default 20) and a global daily cap (`SERVER_KEY_DAILY_GLOBAL`, default 300). Days are UTC. When a cap is hit the route returns 429 asking the user to bring their own key.
+- Counters live in the same Neon database as the usage table (`DATABASE_URL`, table from `migrations/002_rate_limits.sql`), so they are shared across serverless instances. Buckets store a truncated SHA-256 hash of the IP, never the raw address.
+- The server-key path fails closed: in production (`NODE_ENV=production` or any `VERCEL_ENV`) without `DATABASE_URL`, or whenever the counter query fails (for example before migration 002 is applied), server-key calls return 503 and ask for a personal key. BYOK keeps working. Local development without `DATABASE_URL` skips the limiter.
+- The parsed schema is capped on the server at 150 tables, 2,000 columns in total (nested document fields included), 300 columns per table and 1,000 relationships. Larger schemas get 413.
+- Also set a hard spend limit for the key in the provider console. The caps above bound requests, not tokens.
+
 ## Verification
 
 ```sh
@@ -83,7 +94,7 @@ PostgreSQL scripts are split at statement boundaries, respecting quoted strings,
 
 AI providers: xAI, Gemini, OpenAI, Kimi (Moonshot global API), and Claude (Anthropic API). Choose a provider and optionally enter a model ID and personal API key. Switching providers clears the key. Keys remain in page memory only and are sent through this server only to the selected provider's fixed API endpoint when Explain is clicked; provider retention policies apply. Provider subscriptions are not API credentials. No automatic cross-provider fallback is used.
 
-Optional deployment keys: `XAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, `ANTHROPIC_API_KEY`. Optional model overrides: `XAI_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `KIMI_MODEL`, `ANTHROPIC_MODEL`. Redeploy after changing environment variables. Without a matching server key, that provider requires BYOK. Adapter tests use mocked provider responses; they do not verify live account access or spend API credits.
+Optional deployment keys: `XAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, `ANTHROPIC_API_KEY`. Optional model overrides: `XAI_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `KIMI_MODEL`, `ANTHROPIC_MODEL`. Server-key provider: `SERVER_AI_PROVIDER` (default `xai`); only that provider's server key is ever used for keyless requests. Limits: `RATE_LIMIT_EXPLAIN_PER_MINUTE`, `SERVER_KEY_DAILY_PER_IP`, `SERVER_KEY_DAILY_GLOBAL`, `RATE_LIMIT_ADMIN_PER_MINUTE`, `RATE_LIMIT_ADMIN_DAILY_PER_IP` (see `.env.example`). Redeploy after changing environment variables. Without a server key for `SERVER_AI_PROVIDER`, explanations require BYOK. Adapter tests use mocked provider responses; they do not verify live account access or spend API credits.
 
 PostgreSQL `COPY FROM STDIN` data dumps are explicitly rejected. Use `pg_dump --schema-only`; data rows are never interpreted as schema definitions.
 
@@ -104,8 +115,8 @@ PostgreSQL imports retain column/table CHECK expressions, ON DELETE/ON UPDATE ac
 `/admin` shows visualization and AI explanation attempts separately, with success/failure totals and 30 UTC days of activity. Counts begin after setup; historical activity is unavailable. Visualization reports are best-effort browser telemetry, not verified database queries. AI attempts are recorded on the server after schema/provider validation (including configuration failures). Invalid requests are excluded. Storage failures never prevent parsing or AI responses, but cause undercounting. Public browser events can be inflated by automated clients; these metrics are not suitable for billing.
 
 1. Connect the existing Neon database (for this deployment: `neon-teal-paddle`) to the Vercel project, exposing its pooled connection string as server-only `DATABASE_URL`.
-2. Run `migrations/001_usage.sql` in that database using Neon's SQL editor. This adds a dedicated table and index; it does not change existing application tables.
-3. Configure server-only `ADMIN_PASSWORD` in Vercel with a password of 8–512 characters (a unique random password of 20+ characters is recommended), then redeploy. Never use a `NEXT_PUBLIC_` prefix or commit credentials.
+2. Run `migrations/001_usage.sql` and `migrations/002_rate_limits.sql` in that database using Neon's SQL editor. These add dedicated tables and indexes; they do not change existing application tables. Until 002 is applied, server-key explanations and `/admin` fail closed.
+3. Configure server-only `ADMIN_PASSWORD` in Vercel with a password of 16–512 characters (a unique random password of 32+ characters is recommended), then redeploy. Shorter values disable the dashboard. Never use a `NEXT_PUBLIC_` prefix or commit credentials.
 4. Open `/admin` and enter the password. It is sent over HTTPS in the Authorization header, retained only in page memory, and removed on Lock or refresh. Every data request is authenticated server-side; responses are never cached. Missing/short passwords fail closed. This first release uses a shared owner password, not multi-user identity or role management.
 
-Events contain only a random event ID, type, outcome and server timestamp—no SQL, schemas, API keys, IP addresses or user identities. Event IDs deduplicate repeated deliveries. Events currently remain until the database owner deletes them; totals cover retained events only. For a public deployment, use Vercel rate limiting to mitigate telemetry abuse and password guessing. Do not expose this dashboard with a weak/reused password.
+Events contain only a random event ID, type, outcome and server timestamp—no SQL, schemas, API keys, IP addresses or user identities. Event IDs deduplicate repeated deliveries. Events currently remain until the database owner deletes them; totals cover retained events only. `/api/admin/usage` is rate limited per IP in the shared store (`RATE_LIMIT_ADMIN_PER_MINUTE`, default 5/min; `RATE_LIMIT_ADMIN_DAILY_PER_IP`, default 50/day) before the password is checked; if the limiter is unavailable in production the endpoint refuses access. Vercel rate limiting can still help against telemetry abuse. Do not expose this dashboard with a weak/reused password.

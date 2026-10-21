@@ -1,21 +1,45 @@
 import { adminAuthorized } from "@/lib/analytics/auth";
 import { readUsage } from "@/lib/analytics/store";
+import { consume, ipSubject, rules } from "@/lib/security/rate-limit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const reply = (body: object, status = 200) =>
+const reply = (
+  body: object,
+  status = 200,
+  headers: Record<string, string> = {},
+) =>
   Response.json(body, {
     status,
-    headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
+    headers: {
+      "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex",
+      ...headers,
+    },
   });
+const denied = () =>
+  reply(
+    {
+      message:
+        "Admin access required. Check your password and server configuration.",
+    },
+    401,
+  );
 export async function GET(req: Request) {
-  if (!adminAuthorized(req))
+  // Every attempt counts, before the password is checked, to stop brute force.
+  const ip = ipSubject(req);
+  const limit = await consume([
+    { rule: rules.adminBurst(), subject: ip },
+    { rule: rules.adminDailyPerIp(), subject: ip },
+  ]);
+  if (limit.status === "limited")
     return reply(
-      {
-        message:
-          "Admin access required. Check your password and server configuration.",
-      },
-      401,
+      { message: "Too many admin attempts. Try again later." },
+      429,
+      { "Retry-After": String(limit.retryAfter) },
     );
+  // Without the shared limiter, fail closed without evaluating the password.
+  if (limit.status === "unavailable") return denied();
+  if (!adminAuthorized(req)) return denied();
   try {
     return reply(await readUsage());
   } catch {
