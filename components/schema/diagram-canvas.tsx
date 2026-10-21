@@ -17,6 +17,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { TableNode } from "./table-node";
 import { Table } from "@/lib/types/schema";
+import { NARROW_LAYOUT_MAX_TABLES } from "@/lib/services/diagram-generator";
 
 const defaultFitOptions = { padding: 0.25, minZoom: 0.02, maxZoom: 1 };
 const smallFitOptions = { padding: 0.2, minZoom: 0.02, maxZoom: 1.8 };
@@ -36,6 +37,19 @@ export function DiagramCanvas({
   const container = useRef<HTMLDivElement>(null);
   const fitOptions =
     initialNodes.length <= 2 ? smallFitOptions : defaultFitOptions;
+  // Narrow canvases (phones) open on the first models at a readable zoom
+  // instead of shrinking the whole schema to an unreadable overview.
+  const openingFit = (width: number) =>
+    width < 640 &&
+    initialNodes.length > 4 &&
+    initialNodes.length <= NARROW_LAYOUT_MAX_TABLES
+      ? {
+          nodes: initialNodes.slice(0, 4).map((n) => ({ id: n.id })),
+          padding: 0.06,
+          minZoom: 0.5,
+          maxZoom: 1,
+        }
+      : fitOptions;
   const [expanded, setExpanded] = useState(false);
   const [flow, setFlow] = useState<ReactFlowInstance | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -60,7 +74,11 @@ export function DiagramCanvas({
       clearTimeout(timer);
       // Let React Flow observe the new viewport before calculating its center.
       timer = setTimeout(() => {
-        void flow.fitView({ ...fitOptions, duration: 300 });
+        const width = container.current?.clientWidth ?? 1024;
+        void flow.fitView({
+          ...(expanded ? fitOptions : openingFit(width)),
+          duration: 300,
+        });
       }, 60);
     };
     const observer = new ResizeObserver(fit);
@@ -107,7 +125,9 @@ export function DiagramCanvas({
         minZoom={0.02}
         maxZoom={2.5}
         fitView
-        fitViewOptions={fitOptions}
+        fitViewOptions={openingFit(
+          typeof window === "undefined" ? 1024 : window.innerWidth,
+        )}
         defaultEdgeOptions={{
           type: "smoothstep",
           markerEnd: { type: MarkerType.ArrowClosed },

@@ -706,9 +706,8 @@ test("recovery explanation persists until editing and pending drafts flush on re
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByText("Draft saved in this browser.", { exact: true })
-    .waitFor();
+  // The untouched example is never saved; wait for it to draw (hydrated).
+  await expect(page.locator(".react-flow__node")).toHaveCount(8);
   const oversized = Array.from(
     { length: 151 },
     (_, i) => `CREATE TABLE t${i}(id INT);`,
@@ -738,9 +737,8 @@ test("accepted near-limit input is validated once per edit and saves after typin
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByText("Draft saved in this browser.", { exact: true })
-    .waitFor();
+  // The untouched example is never saved; wait for it to draw (hydrated).
+  await expect(page.locator(".react-flow__node")).toHaveCount(8);
   const source = Array.from(
     { length: 100 },
     (_, i) =>
@@ -782,9 +780,8 @@ test("accepted near-limit input is validated once per edit and saves after typin
 
 test("changing format after recovery resumes persistence", async ({ page }) => {
   await page.goto("/");
-  await page
-    .getByText("Draft saved in this browser.", { exact: true })
-    .waitFor();
+  // The untouched example is never saved; wait for it to draw (hydrated).
+  await expect(page.locator(".react-flow__node")).toHaveCount(8);
   await page.evaluate(() =>
     localStorage.setItem(
       "schemamind.draft.v1",

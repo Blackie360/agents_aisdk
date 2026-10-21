@@ -39,6 +39,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Fetch the UI font with the HTML so text settles before first paint. */}
+        <link
+          rel="preload"
+          href="/fonts/geist.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="antialiased">{children}</body>
     </html>
   );
