@@ -17,6 +17,7 @@ import { TableDetailsDrawer } from "@/components/schema/table-details-drawer";
 import { generateDiagram } from "@/lib/services/diagram-generator";
 import { mermaid } from "@/lib/services/exports";
 import { formats, examples } from "@/lib/importers/catalog";
+import { showcase } from "@/lib/importers/showcase";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
 import { readApiResponse } from "@/lib/services/api-response";
 import { Explanation } from "@/components/schema/explanation";
@@ -30,7 +31,8 @@ import { importInBrowser, warmParser } from "@/lib/services/browser-import";
 import { Format, Schema, Table } from "@/lib/types/schema";
 export default function HomePage() {
   const [format, setFormatState] = useState<Format | "auto">("auto");
-  const [input, setInputState] = useState(examples.postgresql);
+  // First visit opens on a realistic Prisma example, drawn in the browser.
+  const [input, setInputState] = useState(showcase.source);
   const [validateInput] = useState(() => createPreflightGuard());
   const recoveringDraft = useRef(false);
   function setFormat(value: Format | "auto") {
@@ -111,6 +113,7 @@ export default function HomePage() {
   const [draftReady, setDraftReady] = useState(false);
   const [draftStatus, setDraftStatus] = useState("");
   useEffect(() => {
+    let userDraft = false;
     try {
       const raw = localStorage.getItem("schemamind.draft.v1");
       if (raw) {
@@ -134,12 +137,15 @@ export default function HomePage() {
           }
           setInput(draft.input);
           setFormat(draft.format);
+          userDraft = draft.input !== showcase.source;
         }
       }
     } catch {
       setDraftStatus("Draft storage unavailable in this browser.");
     }
     setDraftReady(true);
+    // No saved schema of their own: show the example diagram straight away.
+    if (!userDraft) void showExample();
   }, []);
   useEffect(() => {
     if (!draftReady || recoveringDraft.current) return;
@@ -219,6 +225,19 @@ export default function HomePage() {
         setError(e instanceof Error ? e.message : "Import failed.");
     } finally {
       setBusy(false);
+    }
+  }
+  /** Draw the built-in example on load: browser-only, no telemetry or AI. */
+  async function showExample() {
+    clearResult();
+    const version = generation.current;
+    try {
+      const parsed = await importInBrowser(showcase.source, showcase.format);
+      if (version !== generation.current) return;
+      setSchema(parsed);
+      setDiagram(generateDiagram(parsed));
+    } catch {
+      /* The user can still click Visualize. */
     }
   }
   async function explain() {

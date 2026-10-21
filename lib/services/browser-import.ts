@@ -1,6 +1,8 @@
 import type { Schema, Format } from "../types/schema";
 import { preflight } from "../importers/preflight";
 let cachedWorker: Worker | null = null;
+let nextRequest = 0;
+let cancelPending: (() => void) | null = null;
 export function warmParser() {
   if (!cachedWorker)
     cachedWorker = new Worker(new URL("./schema.worker.ts", import.meta.url));
@@ -13,6 +15,9 @@ export function importInBrowser(
   return new Promise((resolve, reject) => {
     preflight(schema);
     const worker = warmParser();
+    const id = ++nextRequest;
+    // Only one import is in flight; a newer one supersedes the older request.
+    cancelPending?.();
     const timer = setTimeout(() => {
       worker.terminate();
       cachedWorker = null;
@@ -22,8 +27,16 @@ export function importInBrowser(
       clearTimeout(timer);
       worker.onmessage = null;
       worker.onerror = null;
+      cancelPending = null;
+    };
+    cancelPending = () => {
+      clearTimeout(timer);
+      cancelPending = null;
+      reject(new Error("Superseded by a newer import."));
     };
     worker.onmessage = (event) => {
+      // A newer import replaced this handler; ignore replies to older ones.
+      if (event.data?.id !== id) return;
       finish();
       if (event.data.error) reject(new Error(event.data.error));
       else resolve(event.data.schema);
@@ -38,6 +51,6 @@ export function importInBrowser(
         ),
       );
     };
-    worker.postMessage({ schema, format });
+    worker.postMessage({ id, schema, format });
   });
 }
