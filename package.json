@@ -55,5 +55,13 @@
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Blackie360/schemamind.git"
+  },
+  "homepage": "https://schema.blackielabs.com",
+  "bugs": {
+    "url": "https://github.com/Blackie360/schemamind/issues"
   }
 }
