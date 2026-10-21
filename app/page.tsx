@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   ArrowUpRight,
   Download,
+  Link2,
   Sparkles,
   FolderOpen,
   ArrowRight,
@@ -20,6 +21,13 @@ import { formats, examples } from "@/lib/importers/catalog";
 import { showcase } from "@/lib/importers/showcase";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
 import { readSchemaFile } from "@/lib/importers/file-check";
+import {
+  decodeShare,
+  shareFromHash,
+  shareSupported,
+  shareUrl,
+  type SharedSchema,
+} from "@/lib/share/link";
 import { readApiResponse } from "@/lib/services/api-response";
 import { Explanation } from "@/components/schema/explanation";
 import {
@@ -135,7 +143,48 @@ export default function HomePage() {
   }, [format]);
   const [draftReady, setDraftReady] = useState(false);
   const [draftStatus, setDraftStatus] = useState("");
+  // A share link being viewed: it is not saved as the user's draft (and the
+  // #s= fragment stays) until they edit; then the fragment is removed.
+  const sharedView = useRef<SharedSchema | null>(null);
+  const [shareNotice, setShareNotice] = useState("");
+  /** Open a #s= share link: it wins over the draft and the example. */
+  async function openShared(data: string) {
+    setDrawing("shared");
+    let shared: SharedSchema;
+    try {
+      shared = await decodeShare(data);
+      validateInput(shared.source);
+    } catch (e) {
+      // Damaged or tampered: say so, drop the fragment, fall back as usual.
+      history.replaceState(null, "", location.pathname + location.search);
+      restoreDraftOrExample();
+      setShareNotice(
+        e instanceof Error ? e.message : "This share link can't be opened.",
+      );
+      return;
+    }
+    sharedView.current = shared;
+    setShareNotice("");
+    // The decoded text is only ever parser input: it goes into the textarea
+    // value and the worker, never into HTML.
+    setInput(shared.source);
+    setFormat(shared.format);
+    setDraftReady(true);
+    void drawQuietly(shared.source, shared.format, "shared");
+  }
   useEffect(() => {
+    const data = shareFromHash(location.hash);
+    if (data !== null) void openShared(data);
+    else restoreDraftOrExample();
+    // A share link pasted into this tab only changes the fragment.
+    const onHash = () => {
+      const next = shareFromHash(location.hash);
+      if (next !== null) void openShared(next);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  function restoreDraftOrExample() {
     let restored: { input: string; format: Format | "auto" } | null = null;
     try {
       const raw = localStorage.getItem("schemamind.draft.v1");
@@ -173,9 +222,21 @@ export default function HomePage() {
     // own, show the example diagram straight away.
     if (restored) void drawQuietly(restored.input, restored.format, "draft");
     else void showExample();
-  }, []);
+  }
   useEffect(() => {
     if (!draftReady || recoveringDraft.current) return;
+    const shared = sharedView.current;
+    if (shared) {
+      // Viewing a share link: keep the user's own saved draft untouched.
+      if (input === shared.source && format === shared.format) {
+        pendingDraft.current = null;
+        return;
+      }
+      // First edit: this is now the user's own work; the link no longer
+      // describes the page, so remove the fragment.
+      sharedView.current = null;
+      history.replaceState(null, "", location.pathname + location.search);
+    }
     // The untouched example is not the user's draft: do not save it.
     if (isShowcase(input, format)) {
       pendingDraft.current = null;
@@ -201,7 +262,9 @@ export default function HomePage() {
   // Automatic draws (example on first visit, restored draft) on page load.
   // Starts as "example" so the server-rendered page already shows the loading
   // state instead of an empty placeholder while the app hydrates.
-  const [drawing, setDrawing] = useState<null | "example" | "draft">("example");
+  const [drawing, setDrawing] = useState<null | "example" | "draft" | "shared">(
+    "example",
+  );
   const [drawError, setDrawError] = useState("");
   // A restored draft that no longer parses: a quiet hint, not an error.
   const [drawHint, setDrawHint] = useState("");
@@ -285,7 +348,7 @@ export default function HomePage() {
   async function drawQuietly(
     source: string,
     sourceFormat: Format | "auto",
-    kind: "example" | "draft",
+    kind: "example" | "draft" | "shared",
   ) {
     clearResult();
     const version = generation.current;
@@ -301,7 +364,10 @@ export default function HomePage() {
         return;
       // A draft that no longer parses waits for Visualize; anything that kept
       // the parser from loading is shown with Retry.
-      if (kind === "example" || e instanceof ParserLoadError)
+      if (kind === "shared" && !(e instanceof ParserLoadError))
+        // The link decoded but its schema does not parse: show why, as Visualize would.
+        setError(e instanceof Error ? e.message : "Import failed.");
+      else if (kind === "example" || e instanceof ParserLoadError)
         setDrawError(
           e instanceof Error ? e.message : "Could not draw the diagram.",
         );
@@ -373,6 +439,50 @@ export default function HomePage() {
         );
     } finally {
       if (version === generation.current) setAiBusy(false);
+    }
+  }
+  const [share, setShare] = useState<{
+    kind: "copied" | "manual" | "error";
+    text: string;
+    link?: string;
+  } | null>(null);
+  const shareField = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (share?.kind === "manual") shareField.current?.select();
+    if (share?.kind !== "copied") return;
+    const timer = setTimeout(() => setShare(null), 4000);
+    return () => clearTimeout(timer);
+  }, [share]);
+  async function copyLink() {
+    setShare(null);
+    setShareNotice("");
+    if (!shareSupported()) {
+      setShare({
+        kind: "error",
+        text: "Share links need a newer browser. Use JSON export instead.",
+      });
+      return;
+    }
+    let link: string;
+    try {
+      link = await shareUrl({ format, source: input }, location.href);
+    } catch (e) {
+      setShare({
+        kind: "error",
+        text: e instanceof Error ? e.message : "Could not create a link.",
+      });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      setShare({ kind: "copied", text: "Link copied", link });
+    } catch {
+      // No clipboard access (permissions, insecure context): select it instead.
+      setShare({
+        kind: "manual",
+        text: "Copy this link (Ctrl+C or ⌘C):",
+        link,
+      });
     }
   }
   function download(kind: "json" | "mmd") {
@@ -525,6 +635,7 @@ export default function HomePage() {
             value={input}
             onChange={(e) => {
               clearResult();
+              setShareNotice("");
               try {
                 validateInput(e.target.value);
                 setInput(e.target.value);
@@ -681,6 +792,21 @@ export default function HomePage() {
               >
                 Mermaid ERD
               </button>
+              <button
+                disabled={!schema}
+                onClick={copyLink}
+                aria-label="Copy link"
+                title={
+                  schema
+                    ? "Copy a link that opens this diagram. The schema is stored in the link itself, not on a server."
+                    : "Visualize a schema first."
+                }
+                className="disabled:opacity-30 whitespace-nowrap"
+              >
+                <Link2 size={13} className="inline mr-1" aria-hidden="true" />
+                <span className="sm:hidden">Link</span>
+                <span className="max-sm:hidden">Copy link</span>
+              </button>
             </div>
           </div>
           {schema?.tables.some((t) => t.kind === "document") && (
@@ -689,7 +815,45 @@ export default function HomePage() {
               structures.
             </p>
           )}
-          <div className="h-[500px] md:h-[570px]">
+          <div className="relative h-[500px] md:h-[570px]">
+            {(share || shareNotice) && (
+              <div
+                className={`absolute inset-x-2 top-12 z-10 flex items-start gap-2 rounded-md border bg-background/95 px-3 py-2 text-xs shadow-sm ${share?.kind === "error" || shareNotice ? "text-red-700" : "text-teal-800"}`}
+              >
+                <div className="min-w-0 flex-1">
+                  {shareNotice ? (
+                    <p role="alert">{shareNotice}</p>
+                  ) : share?.kind === "error" ? (
+                    <p role="alert">{share.text}</p>
+                  ) : (
+                    <p role="status">{share!.text}</p>
+                  )}
+                  {share?.kind === "manual" && (
+                    <input
+                      ref={shareField}
+                      readOnly
+                      aria-label="Share link"
+                      value={share.link}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="mt-1 w-full rounded border bg-background px-2 py-1 font-mono text-[11px]"
+                    />
+                  )}
+                </div>
+                {(shareNotice || share?.kind !== "copied") && (
+                  <button
+                    type="button"
+                    aria-label="Dismiss"
+                    onClick={() => {
+                      setShareNotice("");
+                      setShare(null);
+                    }}
+                    className="shrink-0 px-1 leading-none text-muted-foreground hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            )}
             {busy ? (
               <div
                 aria-live="polite"
@@ -718,7 +882,9 @@ export default function HomePage() {
                 <p className="font-medium">
                   {drawing === "example"
                     ? "Drawing the example diagram…"
-                    : "Restoring your diagram…"}
+                    : drawing === "shared"
+                      ? "Opening the shared diagram…"
+                      : "Restoring your diagram…"}
                 </p>
                 <p className="text-xs text-muted-foreground max-w-xs text-center">
                   The parser runs in your browser. On a slow connection the
