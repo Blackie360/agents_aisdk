@@ -242,8 +242,9 @@ export default function HomePage() {
   // Latest Open file request; older reads are ignored when they finish.
   const fileRequest = useRef(0);
   async function openFile(f: File) {
-    // Keep the current diagram until the file is accepted: a rejected file
-    // must not wipe the last good result.
+    // Nothing is cleared until the file is accepted: an empty or rejected
+    // file must not wipe the editor, the diagram or the saved draft
+    // (readSchemaFile rejects empty and whitespace-only files).
     const request = ++fileRequest.current;
     try {
       const content = await readSchemaFile(f);

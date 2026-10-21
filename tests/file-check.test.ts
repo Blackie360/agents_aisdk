@@ -41,3 +41,13 @@ test("an over-limit schema file names the 200 KB limit, same as paste", async ()
     "CREATE TABLE é (id int);",
   );
 });
+
+test("empty and whitespace-only files are 'This file is empty.'", async () => {
+  for (const content of ["", "   \n\t\r\n ", "\uFEFF\n"])
+    await assert.rejects(
+      readSchemaFile(new Blob([content], { type: "application/sql" })),
+      {
+        message: "This file is empty.",
+      },
+    );
+});

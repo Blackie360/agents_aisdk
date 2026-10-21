@@ -1,5 +1,6 @@
 import { MAX_INPUT_BYTES } from "./resolve";
 
+export const EMPTY_FILE = "This file is empty.";
 export const NOT_A_SCHEMA_FILE =
   "This isn't a schema file. Open a text schema such as .sql, .prisma, .ts or .json.";
 
@@ -29,11 +30,16 @@ export async function readSchemaFile(file: Blob): Promise<string> {
   if (file.size > MAX_INPUT_BYTES)
     // Same message as pasting an over-size schema (preflight).
     throw new Error("Schema exceeds the 200 KB import limit.");
+  if (file.size === 0) throw new Error(EMPTY_FILE);
+  let text: string;
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(
+    text = new TextDecoder("utf-8", { fatal: true }).decode(
       await file.arrayBuffer(),
     );
   } catch {
     throw new Error(NOT_A_SCHEMA_FILE);
   }
+  // Whitespace-only (including a lone BOM) counts as empty.
+  if (!text.replace(/^\uFEFF/, "").trim()) throw new Error(EMPTY_FILE);
+  return text;
 }
