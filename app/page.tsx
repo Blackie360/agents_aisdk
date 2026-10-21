@@ -17,6 +17,7 @@ import { TableDetailsDrawer } from "@/components/schema/table-details-drawer";
 import { generateDiagram } from "@/lib/services/diagram-generator";
 import { mermaid } from "@/lib/services/exports";
 import { formats, examples } from "@/lib/importers/catalog";
+import { showcase } from "@/lib/importers/showcase";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
 import { readApiResponse } from "@/lib/services/api-response";
 import { Explanation } from "@/components/schema/explanation";
@@ -26,11 +27,25 @@ import {
   type Provider,
 } from "@/components/auth/account";
 import { createPreflightGuard } from "@/lib/importers/preflight";
-import { importInBrowser, warmParser } from "@/lib/services/browser-import";
+import {
+  ImportCancelled,
+  ParserLoadError,
+  importInBrowser,
+  warmParser,
+} from "@/lib/services/browser-import";
 import { Format, Schema, Table } from "@/lib/types/schema";
+/** Phones get a compact two-column layout that opens at a readable zoom. */
+const layout = () => ({
+  narrow:
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 639px)").matches,
+});
+const isShowcase = (input: string, format: Format | "auto") =>
+  input === showcase.source && (format === "auto" || format === "prisma");
 export default function HomePage() {
   const [format, setFormatState] = useState<Format | "auto">("auto");
-  const [input, setInputState] = useState(examples.postgresql);
+  // First visit opens on a realistic Prisma example, drawn in the browser.
+  const [input, setInputState] = useState(showcase.source);
   const [validateInput] = useState(() => createPreflightGuard());
   const recoveringDraft = useRef(false);
   function setFormat(value: Format | "auto") {
@@ -111,6 +126,7 @@ export default function HomePage() {
   const [draftReady, setDraftReady] = useState(false);
   const [draftStatus, setDraftStatus] = useState("");
   useEffect(() => {
+    let restored: { input: string; format: Format | "auto" } | null = null;
     try {
       const raw = localStorage.getItem("schemamind.draft.v1");
       if (raw) {
@@ -130,19 +146,31 @@ export default function HomePage() {
               "Oversized draft removed. Import up to 150 entities at a time.",
             );
             setDraftReady(true);
+            void showExample();
             return;
           }
           setInput(draft.input);
           setFormat(draft.format);
+          if (!isShowcase(draft.input, draft.format))
+            restored = { input: draft.input, format: draft.format };
         }
       }
     } catch {
       setDraftStatus("Draft storage unavailable in this browser.");
     }
     setDraftReady(true);
+    // Redraw the saved schema with its saved format; with no draft of their
+    // own, show the example diagram straight away.
+    if (restored) void drawQuietly(restored.input, restored.format, "draft");
+    else void showExample();
   }, []);
   useEffect(() => {
     if (!draftReady || recoveringDraft.current) return;
+    // The untouched example is not the user's draft: do not save it.
+    if (isShowcase(input, format)) {
+      pendingDraft.current = null;
+      return;
+    }
     // Every entry path validates before accepting input. Do not rescan for autosave.
     pendingDraft.current = { input, format };
     if (!input) {
@@ -160,6 +188,12 @@ export default function HomePage() {
   const [selected, setSelected] = useState<Table | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  // Automatic draws (example on first visit, restored draft) on page load.
+  // Starts as "example" so the server-rendered page already shows the loading
+  // state instead of an empty placeholder while the app hydrates.
+  const [drawing, setDrawing] = useState<null | "example" | "draft">("example");
+  const [drawError, setDrawError] = useState("");
+  const lastDraw = useRef<() => void>(() => {});
   const [explanation, setExplanation] = useState(""),
     [aiBusy, setAiBusy] = useState(false);
   const [signup, setSignup] = useState<{
@@ -182,22 +216,32 @@ export default function HomePage() {
     setExplanation("");
     setAiBusy(false);
     setError("");
+    setDrawing(null);
+    setDrawError("");
   }
+  // Latest Open file request; older reads are ignored when they finish.
+  const fileRequest = useRef(0);
   async function openFile(f: File) {
-    clearResult();
+    // Nothing is cleared until the file is accepted: an empty or rejected
+    // file must not wipe the editor, the diagram or the saved draft.
+    const request = ++fileRequest.current;
     if (f.size > 200_000) {
       setError("File exceeds 200 KB.");
       return;
     }
-    const version = generation.current;
     try {
       const content = await f.text();
-      if (version !== generation.current) return;
+      if (request !== fileRequest.current) return;
+      if (!content.trim()) {
+        setError("This file is empty.");
+        return;
+      }
       validateInput(content);
+      clearResult();
       setInput(content);
       setFormat("auto");
     } catch {
-      if (version === generation.current)
+      if (request === fileRequest.current)
         setError(
           "Could not import this file. Check the 200 KB and 150 entity limits.",
         );
@@ -212,8 +256,10 @@ export default function HomePage() {
       reportVisualization("success");
       if (version !== generation.current) return;
       setSchema(parsed);
-      setDiagram(generateDiagram(parsed));
+      setDiagram(generateDiagram(parsed, layout()));
     } catch (e) {
+      // A newer import replaced this one: that is not a failed visualization.
+      if (e instanceof ImportCancelled) return;
       reportVisualization("failure");
       if (version === generation.current)
         setError(e instanceof Error ? e.message : "Import failed.");
@@ -221,6 +267,36 @@ export default function HomePage() {
       setBusy(false);
     }
   }
+  /** Draw on page load without telemetry or AI: the example or a saved draft. */
+  async function drawQuietly(
+    source: string,
+    sourceFormat: Format | "auto",
+    kind: "example" | "draft",
+  ) {
+    clearResult();
+    const version = generation.current;
+    lastDraw.current = () => void drawQuietly(source, sourceFormat, kind);
+    setDrawing(kind);
+    try {
+      const parsed = await importInBrowser(source, sourceFormat);
+      if (version !== generation.current) return;
+      setSchema(parsed);
+      setDiagram(generateDiagram(parsed, layout()));
+    } catch (e) {
+      if (version !== generation.current || e instanceof ImportCancelled)
+        return;
+      // A draft that no longer parses waits for Visualize; anything that kept
+      // the parser from loading is shown with Retry.
+      if (kind === "example" || e instanceof ParserLoadError)
+        setDrawError(
+          e instanceof Error ? e.message : "Could not draw the diagram.",
+        );
+    } finally {
+      if (version === generation.current) setDrawing(null);
+    }
+  }
+  const showExample = () =>
+    drawQuietly(showcase.source, showcase.format, "example");
   async function explain() {
     const version = generation.current;
     setAiBusy(true);
@@ -297,7 +373,7 @@ export default function HomePage() {
   }
   return (
     <main className="min-h-screen app-shell">
-      <header className="flex items-center justify-between border-b px-5 md:px-10 py-5">
+      <header className="flex items-center justify-between border-b px-5 md:px-10 py-3 md:py-5">
         <div className="flex items-center gap-3">
           <span className="rounded-xl bg-teal-700/10 p-2 text-teal-700">
             <Database size={24} />
@@ -321,19 +397,20 @@ export default function HomePage() {
           <AccountMenu />
         </div>
       </header>
-      <section className="hero px-5 md:px-10 pt-10 pb-8">
+      <section className="hero px-5 md:px-10 pt-6 pb-5 md:pt-10 md:pb-8">
         <div className="flex flex-wrap gap-6 items-end justify-between">
           <div>
-            <h2 className="text-4xl md:text-5xl tracking-[-.045em] leading-[1.08] font-semibold max-w-2xl">
+            <h2 className="text-[1.75rem] sm:text-4xl md:text-5xl tracking-[-.045em] leading-[1.08] font-semibold max-w-2xl">
               Your schema, <span className="text-teal-800">visualized.</span>
             </h2>
-            <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl leading-7">
-              Paste SQL, Prisma or Drizzle. Explore the connections.
+            <p className="mt-1 md:mt-4 text-sm md:text-base text-muted-foreground max-w-xl leading-6 md:leading-7">
+              Paste SQL, Prisma or Drizzle.
+              <span className="max-sm:hidden"> Explore the connections.</span>
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 mt-7">
-          <span className="text-xs text-muted-foreground mr-2">
+        <div className="example-chips flex flex-nowrap md:flex-wrap items-center gap-2 mt-3 md:mt-7 overflow-x-auto -mx-5 px-5 md:mx-0 md:px-0">
+          <span className="text-xs text-muted-foreground mr-2 shrink-0 whitespace-nowrap">
             Try an example
           </span>
           {(["postgresql", "prisma", "drizzle", "json-schema"] as Format[]).map(
@@ -346,7 +423,7 @@ export default function HomePage() {
                   setFormat(f);
                   setInput(examples[f]);
                 }}
-                className="example-chip"
+                className="example-chip shrink-0"
               >
                 {f === "json-schema"
                   ? "Document"
@@ -550,12 +627,18 @@ export default function HomePage() {
           className="min-w-0 rounded-2xl border overflow-hidden canvas-panel"
           aria-label="Schema visualization"
         >
-          <div className="flex flex-wrap justify-between gap-3 items-center border-b px-4 py-3 bg-card">
+          <div className="flex flex-wrap justify-between gap-3 items-center border-b px-4 py-2.5 md:py-3 bg-card">
             <div className="flex gap-2 items-center text-sm">
               <span className="step-number">2</span>
-              {schema?.tables[0]?.kind === "document"
-                ? "Document structure"
-                : "Relationship diagram"}
+              {schema?.tables[0]?.kind === "document" ? (
+                "Document structure"
+              ) : (
+                <span>
+                  <span className="max-sm:hidden">Relationship </span>
+                  <span className="sm:hidden">Diagram</span>
+                  <span className="max-sm:hidden">diagram</span>
+                </span>
+              )}
             </div>
             <div className="flex gap-3 text-xs">
               <button
@@ -598,6 +681,41 @@ export default function HomePage() {
                 <p className="text-xs text-muted-foreground">
                   You can keep editing while the diagram is prepared.
                 </p>
+              </div>
+            ) : drawing && !diagram ? (
+              <div
+                aria-live="polite"
+                className="h-full flex flex-col items-center justify-center gap-3 text-teal-800 diagram-empty"
+              >
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="animate-spin motion-reduce:animate-none"
+                  size={28}
+                />
+                <p className="font-medium">
+                  {drawing === "example"
+                    ? "Drawing the example diagram…"
+                    : "Restoring your diagram…"}
+                </p>
+                <p className="text-xs text-muted-foreground max-w-xs text-center">
+                  The parser runs in your browser. On a slow connection the
+                  first download can take a little while.
+                </p>
+              </div>
+            ) : drawError && !diagram ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-8 diagram-empty">
+                <p
+                  role="alert"
+                  className="text-sm text-red-700 border border-red-500/30 rounded-lg p-3 max-w-sm"
+                >
+                  {drawError}
+                </p>
+                <button
+                  onClick={() => lastDraw.current()}
+                  className="rounded-lg border px-4 py-2 text-sm font-medium text-teal-800"
+                >
+                  Retry
+                </button>
               </div>
             ) : diagram ? (
               <DiagramCanvas

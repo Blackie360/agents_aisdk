@@ -28,10 +28,8 @@ test("after the free explanations, the UI asks visitors to sign in", async ({
         });
   });
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Visualize schema", exact: true })
-    .click();
-  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  // The Prisma showcase is already drawn on load; no Visualize click needed.
+  await expect(page.locator(".react-flow__node")).toHaveCount(8);
   await page.getByRole("button", { name: "Explain with Grok" }).click();
   await expect(page.getByText("First free explanation")).toBeVisible();
   await expect(

@@ -39,7 +39,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: "geist", sans-serif;
+    font-family: "geist", "geist-fallback", sans-serif;
   }
 
   @font-face {
@@ -47,6 +47,18 @@
     font-style: normal;
     font-weight: 100 900;
     src: url(/fonts/geist.woff2) format("woff2");
+    font-display: swap;
+  }
+
+  /* Arial sized to Geist's metrics, so the swap to the web font does not
+     move the layout (values match next/font's generated Geist fallback). */
+  @font-face {
+    font-family: "geist-fallback";
+    src: local("Arial"), local("Liberation Sans"), local("Helvetica");
+    ascent-override: 95.94%;
+    descent-override: 28.16%;
+    line-gap-override: 0%;
+    size-adjust: 104.76%;
   }
 
   @font-face {
@@ -54,6 +66,7 @@
     font-style: normal;
     font-weight: 100 900;
     src: url(/fonts/geist-mono.woff2) format("woff2");
+    font-display: swap;
   }
 
   h1,
@@ -260,4 +273,37 @@ a:focus-visible {
   .preview-graphic {
     transform: scale(0.85);
   }
+}
+
+/* Single-column layouts (below the 1024px two-column grid): show the diagram
+   before the input panel so the first screen already has a drawn schema.
+   Desktop order is unchanged. */
+@media (max-width: 1023px) {
+  .canvas-panel {
+    order: -1;
+  }
+  /* Steps read 2-then-1 in this order, so drop the numbers here. */
+  .step-number {
+    display: none;
+  }
+}
+/* Short landscape screens: keep only the example chips from the hero. */
+@media (max-width: 1023px) and (max-height: 500px) {
+  .hero {
+    padding-top: 0.5rem;
+    padding-bottom: 0.75rem;
+  }
+  .hero h2,
+  .hero p {
+    display: none;
+  }
+  .hero .example-chips {
+    margin-top: 0;
+  }
+}
+.example-chips {
+  scrollbar-width: none;
+}
+.example-chips::-webkit-scrollbar {
+  display: none;
 }

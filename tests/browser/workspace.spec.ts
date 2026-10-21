@@ -1,9 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { examples } from "../../lib/importers/catalog";
+// The app opens on the Prisma showcase; these flows exercise the small SQL example.
+const useSqlExample = (page: Page) =>
+  page.getByLabel("Schema source", { exact: true }).fill(examples.postgresql);
 test("imports stay local when the hosted parsing API is broken; AI failure preserves the diagram", async ({
   page,
 }) => {
   await page.goto("/");
+  await useSqlExample(page);
   let requests = 0;
   await page.route("**/api/schema-visualizer", (route) => {
     requests++;
@@ -32,6 +36,7 @@ test("auto import, interactive diagram, details, exports and optional AI failure
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
+  await useSqlExample(page);
   await expect(page.getByLabel("Input format")).toHaveValue("auto");
   await page
     .getByRole("button", { name: "Visualize schema", exact: true })
@@ -127,6 +132,7 @@ test("mobile controls fit without horizontal page overflow", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await useSqlExample(page);
   await page
     .getByRole("button", { name: "Visualize schema", exact: true })
     .click();
@@ -187,6 +193,7 @@ test("personal xAI key is masked, opt-in, absent from storage and exports, and c
   page,
 }) => {
   await page.goto("/");
+  await useSqlExample(page);
   await page
     .getByRole("button", { name: "Visualize schema", exact: true })
     .click();
@@ -378,6 +385,7 @@ test("provider changes clear credentials and selected providers reach the explan
   page,
 }) => {
   await page.goto("/");
+  await useSqlExample(page);
   await page
     .getByRole("button", { name: "Visualize schema", exact: true })
     .click();
@@ -462,6 +470,7 @@ test("unavailable browser storage does not prevent importing", async ({
     };
   });
   await page.goto("/");
+  await useSqlExample(page);
   await expect(
     page.getByText("Draft could not be saved. Keep a copy before refreshing."),
   ).toBeVisible();
@@ -697,9 +706,8 @@ test("recovery explanation persists until editing and pending drafts flush on re
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByText("Draft saved in this browser.", { exact: true })
-    .waitFor();
+  // The untouched example is never saved; wait for it to draw (hydrated).
+  await expect(page.locator(".react-flow__node")).toHaveCount(8);
   const oversized = Array.from(
     { length: 151 },
     (_, i) => `CREATE TABLE t${i}(id INT);`,
@@ -729,9 +737,8 @@ test("accepted near-limit input is validated once per edit and saves after typin
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByText("Draft saved in this browser.", { exact: true })
-    .waitFor();
+  // The untouched example is never saved; wait for it to draw (hydrated).
+  await expect(page.locator(".react-flow__node")).toHaveCount(8);
   const source = Array.from(
     { length: 100 },
     (_, i) =>
@@ -773,9 +780,8 @@ test("accepted near-limit input is validated once per edit and saves after typin
 
 test("changing format after recovery resumes persistence", async ({ page }) => {
   await page.goto("/");
-  await page
-    .getByText("Draft saved in this browser.", { exact: true })
-    .waitFor();
+  // The untouched example is never saved; wait for it to draw (hydrated).
+  await expect(page.locator(".react-flow__node")).toHaveCount(8);
   await page.evaluate(() =>
     localStorage.setItem(
       "schemamind.draft.v1",
