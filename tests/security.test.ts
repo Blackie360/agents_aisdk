@@ -5,9 +5,9 @@ import { neonConfig } from "@neondatabase/serverless";
 import { POST as explain } from "../app/api/schema-explanation/route";
 import { GET as adminUsage } from "../app/api/admin/usage/route";
 import {
-  adminAuthorized,
-  ADMIN_PASSWORD_MIN_LENGTH,
-} from "../lib/analytics/auth";
+  setSessionResolverForTests,
+  type SessionUser,
+} from "../lib/auth/server";
 import { SCHEMA_LIMITS } from "../lib/security/schema-limits";
 
 const ENV_KEYS = [
@@ -24,7 +24,14 @@ const ENV_KEYS = [
   "SERVER_KEY_DAILY_GLOBAL",
   "RATE_LIMIT_ADMIN_PER_MINUTE",
   "RATE_LIMIT_ADMIN_DAILY_PER_IP",
-  "ADMIN_PASSWORD",
+  "ADMIN_EMAILS",
+  "ANON_TRIAL_LIMIT",
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "GITHUB_CLIENT_ID",
+  "GITHUB_CLIENT_SECRET",
   "RATE_LIMIT_SALT",
 ];
 const PERSONAL_KEY = "sk-personal-SECRET-7f3a9";
@@ -78,6 +85,13 @@ async function withEnv(
       return {
         fields: [{ name: "hits", dataTypeID: 23 }],
         rows: [[String(hits)]],
+      };
+    }
+    if (q.query.includes("SELECT hits FROM schemamind_rate_limits")) {
+      const hits = store.get(String(q.params[0]));
+      return {
+        fields: [{ name: "hits", dataTypeID: 23 }],
+        rows: hits === undefined ? [] : [[String(hits)]],
       };
     }
     return { fields: [], rows: [] };
@@ -280,65 +294,70 @@ test("2: server-key path fails closed when the shared store is missing or broken
   );
 });
 
-test("3: admin endpoint is rate limited before the password check and needs 16+ chars", async () => {
-  const strong = "a-strong-admin-password-1234";
-  const adminRequest = (password: string, ip = "192.0.2.10") =>
+test("3: admin endpoint keeps its limiter in front of the session check", async () => {
+  const admin: SessionUser = {
+    id: "u1",
+    email: "felix@example.com",
+    emailVerified: true,
+  };
+  const adminRequest = (ip = "192.0.2.10", signedIn = false) =>
     new Request("https://schema.example/api/admin/usage", {
-      headers: { authorization: `Bearer ${password}`, "x-real-ip": ip },
+      headers: {
+        "x-real-ip": ip,
+        ...(signedIn ? { "x-test-user": "admin" } : {}),
+      },
     });
-  assert.equal(ADMIN_PASSWORD_MIN_LENGTH, 16);
-  await withEnv({}, async () => {
-    process.env.ADMIN_PASSWORD = "x".repeat(15);
-    assert.equal(adminAuthorized(adminRequest("x".repeat(15))), false);
-    process.env.ADMIN_PASSWORD = "x".repeat(16);
-    assert.equal(adminAuthorized(adminRequest("x".repeat(16))), true);
-    assert.equal(adminAuthorized(adminRequest("y".repeat(16))), false);
-  });
-  assert.match(
-    readFileSync("lib/analytics/auth.ts", "utf8"),
-    /timingSafeEqual\(/,
+  setSessionResolverForTests(async (req) =>
+    req.headers.get("x-test-user") === "admin" ? admin : null,
   );
-  await withEnv(
-    {
-      DATABASE_URL: DB,
-      ADMIN_PASSWORD: strong,
-      RATE_LIMIT_ADMIN_PER_MINUTE: "3",
-    },
-    async () => {
-      for (let i = 0; i < 3; i++)
+  try {
+    await withEnv(
+      {
+        DATABASE_URL: DB,
+        ADMIN_EMAILS: admin.email,
+        RATE_LIMIT_ADMIN_PER_MINUTE: "3",
+      },
+      async () => {
+        for (let i = 0; i < 3; i++)
+          assert.equal((await adminUsage(adminRequest())).status, 401);
+        // Fourth attempt is refused even with an admin session.
+        const limited = await adminUsage(adminRequest("192.0.2.10", true));
+        assert.equal(limited.status, 429);
+        assert.ok(Number(limited.headers.get("retry-after")) > 0);
+        assert.notEqual(
+          (await adminUsage(adminRequest("192.0.2.11", true))).status,
+          429,
+        );
+      },
+    );
+    await withEnv(
+      {
+        DATABASE_URL: DB,
+        ADMIN_EMAILS: admin.email,
+        RATE_LIMIT_ADMIN_DAILY_PER_IP: "2",
+      },
+      async () => {
+        await adminUsage(adminRequest());
+        await adminUsage(adminRequest());
         assert.equal(
-          (await adminUsage(adminRequest(`guess-${i}`))).status,
+          (await adminUsage(adminRequest("192.0.2.10", true))).status,
+          429,
+        );
+      },
+    );
+    // Without the shared limiter in production, admin fails closed even for an admin.
+    await withEnv(
+      { VERCEL_ENV: "production", ADMIN_EMAILS: admin.email },
+      async () => {
+        assert.equal(
+          (await adminUsage(adminRequest("192.0.2.10", true))).status,
           401,
         );
-      // Fourth attempt is refused even with the right password.
-      const limited = await adminUsage(adminRequest(strong));
-      assert.equal(limited.status, 429);
-      assert.ok(Number(limited.headers.get("retry-after")) > 0);
-      assert.notEqual(
-        (await adminUsage(adminRequest(strong, "192.0.2.11"))).status,
-        429,
-      );
-    },
-  );
-  await withEnv(
-    {
-      DATABASE_URL: DB,
-      ADMIN_PASSWORD: strong,
-      RATE_LIMIT_ADMIN_DAILY_PER_IP: "2",
-    },
-    async () => {
-      await adminUsage(adminRequest("guess-a"));
-      await adminUsage(adminRequest("guess-b"));
-      assert.equal((await adminUsage(adminRequest(strong))).status, 429);
-    },
-  );
-  // Without the shared limiter in production, admin fails closed.
-  await withEnv(
-    { VERCEL_ENV: "production", ADMIN_PASSWORD: strong },
-    async () => {
-      assert.equal((await adminUsage(adminRequest(strong))).status, 401);
-    },
-  );
+      },
+    );
+  } finally {
+    setSessionResolverForTests(null);
+  }
 });
 
 test("4: a personal apiKey is never logged, stored or echoed on any path", async () => {
@@ -529,7 +548,6 @@ test("IPv6 clients are bucketed by /64; IPv4-mapped IPv6 counts as IPv4", async 
   await withEnv(
     {
       DATABASE_URL: DB,
-      ADMIN_PASSWORD: "a-strong-admin-password-1234",
       RATE_LIMIT_SALT: "test-salt-value-0123456789",
       RATE_LIMIT_ADMIN_PER_MINUTE: "2",
     },
@@ -572,18 +590,21 @@ test("RATE_LIMIT_SALT keys the IP hash and is required in production", async () 
       VERCEL_ENV: "production",
       DATABASE_URL: DB,
       XAI_API_KEY: "server-test-key",
-      ADMIN_PASSWORD: "a-strong-admin-password-1234",
+      ADMIN_EMAILS: "felix@example.com",
     },
     async ({ calls, queries }) => {
       const response = await explain(explainRequest());
       assert.equal(response.status, 503);
       assert.equal((await response.json()).code, "SERVER_KEY_UNAVAILABLE");
       assert.equal(calls.length, 0);
+      setSessionResolverForTests(async () => ({
+        id: "u1",
+        email: "felix@example.com",
+        emailVerified: true,
+      }));
       const admin = await adminUsage(
-        new Request("https://schema.example/api/admin/usage", {
-          headers: { authorization: "Bearer a-strong-admin-password-1234" },
-        }),
-      );
+        new Request("https://schema.example/api/admin/usage"),
+      ).finally(() => setSessionResolverForTests(null));
       assert.equal(admin.status, 401);
       assert.ok(
         queries.every((q) => !q.query.includes("schemamind_rate_limits")),
@@ -598,4 +619,276 @@ test("RATE_LIMIT_SALT keys the IP hash and is required in production", async () 
       assert.equal((await explain(explainRequest())).status, 200);
     },
   );
+});
+
+test("anonymous visitors get 3 free server-key explanations, then signup_required", async () => {
+  const { ipSubject } = await import("../lib/security/rate-limit");
+  let user: SessionUser | null = null;
+  setSessionResolverForTests(async () => user);
+  const req = (extra: object = {}, ip = "198.51.100.40", cookie?: string) =>
+    new Request("https://schema.example/api/schema-explanation", {
+      method: "POST",
+      headers: { "x-real-ip": ip, ...(cookie ? { cookie } : {}) },
+      body: JSON.stringify({
+        schema: { tables: [], relationships: [] },
+        ...extra,
+      }),
+    });
+  try {
+    await withEnv(
+      {
+        DATABASE_URL: DB,
+        XAI_API_KEY: "server-test-key",
+        RATE_LIMIT_SALT: "test-salt-value-0123456789",
+        SERVER_KEY_DAILY_PER_IP: "5",
+        RATE_LIMIT_EXPLAIN_PER_MINUTE: "100",
+        BETTER_AUTH_SECRET: "s".repeat(40),
+        GITHUB_CLIENT_ID: "gh-id",
+        GITHUB_CLIENT_SECRET: "gh-secret",
+      },
+      async ({ calls, store }) => {
+        for (const left of [2, 1, 0]) {
+          const ok = await explain(req());
+          assert.equal(ok.status, 200);
+          assert.equal(
+            ok.headers.get("x-free-explanations-remaining"),
+            String(left),
+          );
+          assert.match(
+            ok.headers.get("set-cookie") ?? "",
+            new RegExp(
+              `^schemamind_trials=${3 - left}; Path=/; Max-Age=\\d+; HttpOnly; SameSite=Lax`,
+            ),
+          );
+        }
+        const fourth = await explain(req());
+        assert.equal(fourth.status, 401);
+        const body = await fourth.json();
+        assert.equal(body.error, "signup_required");
+        assert.equal(body.code, "SIGNUP_REQUIRED");
+        assert.deepEqual(body.providers, ["github"]);
+        assert.equal(calls.length, 3); // the provider was not called
+        // Trials are counted in the shared store by hashed IP.
+        const subject = ipSubject(
+          new Request("https://x/", {
+            headers: { "x-real-ip": "198.51.100.40" },
+          }),
+        );
+        const trialKey = [...store.keys()].find((k) =>
+          k.startsWith(`anon-trial:${subject}:`),
+        );
+        assert.ok(trialKey);
+        assert.equal(store.get(trialKey!), 3);
+        // Bring-your-own-key is unchanged: no trial cap.
+        assert.equal(
+          (await explain(req({ apiKey: PERSONAL_KEY }))).status,
+          200,
+        );
+        // Signed-in users skip the trial cap but keep the per-IP daily cap (5).
+        user = { id: "u1", email: "dev@example.com", emailVerified: true };
+        const signedIn = await explain(
+          req({ provider: "openai", model: "gpt-big" }),
+        );
+        assert.equal(signedIn.status, 200);
+        assert.equal(
+          signedIn.headers.get("x-free-explanations-remaining"),
+          null,
+        );
+        assert.equal(signedIn.headers.get("set-cookie"), null);
+        // #19 model pinning still applies to signed-in server-key calls.
+        assert.equal(calls.at(-1)!.url, "https://api.x.ai/v1/responses");
+        assert.equal(calls.at(-1)!.body.model, "grok-4.7");
+        assert.equal((await explain(req())).status, 200);
+        const capped = await explain(req());
+        assert.equal(capped.status, 429);
+        assert.equal((await capped.json()).code, "SERVER_KEY_LIMIT");
+        user = null;
+        // The cookie is a secondary signal: a used-up browser on a fresh IP is still asked to sign up.
+        const viaCookie = await explain(
+          req({}, "198.51.100.41", "theme=dark; schemamind_trials=3"),
+        );
+        assert.equal(viaCookie.status, 401);
+        assert.equal((await viaCookie.json()).error, "signup_required");
+        // A fresh IP without the cookie starts at zero.
+        assert.equal((await explain(req({}, "198.51.100.42"))).status, 200);
+      },
+    );
+    // A request refused by a daily cap does not burn a trial.
+    await withEnv(
+      {
+        DATABASE_URL: DB,
+        XAI_API_KEY: "server-test-key",
+        RATE_LIMIT_SALT: "test-salt-value-0123456789",
+        SERVER_KEY_DAILY_PER_IP: "1",
+        ANON_TRIAL_LIMIT: "2",
+      },
+      async ({ store }) => {
+        assert.equal((await explain(req({}, "198.51.100.50"))).status, 200);
+        assert.equal((await explain(req({}, "198.51.100.50"))).status, 429);
+        const trial = [...store.entries()].filter(([k]) =>
+          k.startsWith("anon-trial:"),
+        );
+        assert.deepEqual(
+          trial.map(([, v]) => v),
+          [1],
+        );
+        // Configured limit is honoured and reported.
+        const body = await (
+          await explain(req({}, "198.51.100.51", "schemamind_trials=2"))
+        ).json();
+        assert.equal(body.error, "signup_required");
+        assert.match(body.message, /2 free explanations/);
+        assert.deepEqual(body.providers, []); // auth not configured
+      },
+    );
+    // The trial counter needs the shared store: fail closed in production.
+    await withEnv(
+      {
+        VERCEL_ENV: "production",
+        XAI_API_KEY: "server-test-key",
+        RATE_LIMIT_SALT: "s".repeat(20),
+      },
+      async ({ calls }) => {
+        assert.equal((await explain(req())).status, 503);
+        assert.equal(calls.length, 0);
+      },
+    );
+  } finally {
+    setSessionResolverForTests(null);
+  }
+});
+
+test("auth is enabled only when safely configured; providers shown only when set", async () => {
+  const { authEnabled, configuredProviders } =
+    await import("../lib/auth/server");
+  const { GET: account } = await import("../app/api/account/route");
+  const { GET: authGet, POST: authPost } =
+    await import("../app/api/auth/[...all]/route");
+  const providers = async () =>
+    (
+      await (
+        await account(new Request("https://schema.example/api/account"))
+      ).json()
+    ).providers;
+  const full = {
+    DATABASE_URL: DB,
+    BETTER_AUTH_SECRET: "s".repeat(32),
+    GOOGLE_CLIENT_ID: "g-id",
+    GOOGLE_CLIENT_SECRET: "g-secret",
+  };
+  await withEnv({}, async () => {
+    assert.equal(authEnabled(), false);
+    assert.deepEqual(await providers(), []);
+    const res = await authPost(
+      new Request("https://schema.example/api/auth/sign-in/social", {
+        method: "POST",
+        body: "{}",
+      }),
+    );
+    assert.equal(res.status, 503);
+    assert.equal(
+      (
+        await authGet(
+          new Request("https://schema.example/api/auth/get-session"),
+        )
+      ).status,
+      503,
+    );
+  });
+  await withEnv(full, async () => {
+    assert.equal(authEnabled(), true);
+    assert.deepEqual(configuredProviders(), ["google"]);
+    assert.deepEqual(await providers(), ["google"]);
+    process.env.GITHUB_CLIENT_ID = "gh-id"; // secret missing: GitHub stays hidden
+    assert.deepEqual(await providers(), ["google"]);
+    process.env.GITHUB_CLIENT_SECRET = "gh-secret";
+    assert.deepEqual(await providers(), ["google", "github"]);
+  });
+  await withEnv({ ...full, BETTER_AUTH_SECRET: "short-secret" }, async () => {
+    assert.equal(authEnabled(), false);
+  });
+  await withEnv({ ...full, DATABASE_URL: "" }, async () => {
+    assert.equal(authEnabled(), false);
+  });
+  await withEnv({ ...full, GOOGLE_CLIENT_SECRET: "" }, async () => {
+    assert.equal(authEnabled(), false); // no provider configured
+  });
+  // Production also requires BETTER_AUTH_URL.
+  await withEnv({ ...full, VERCEL_ENV: "production" }, async () => {
+    assert.equal(authEnabled(), false);
+    assert.deepEqual(await providers(), []);
+    process.env.BETTER_AUTH_URL = "https://schema.example";
+    assert.equal(authEnabled(), true);
+  });
+});
+
+test("Better Auth builds Google and GitHub sign-in URLs with the expected callbacks", async () => {
+  const { getAuth, setAuthDatabaseForTests } =
+    await import("../lib/auth/server");
+  const { memoryAdapter } = await import("better-auth/adapters/memory");
+  setAuthDatabaseForTests(() =>
+    memoryAdapter({
+      schemamind_auth_user: [],
+      schemamind_auth_session: [],
+      schemamind_auth_account: [],
+      schemamind_auth_verification: [],
+    }),
+  );
+  await withEnv(
+    {
+      DATABASE_URL: DB,
+      BETTER_AUTH_SECRET: "s".repeat(40),
+      BETTER_AUTH_URL: "https://schema.example",
+      GOOGLE_CLIENT_ID: "g-id",
+      GOOGLE_CLIENT_SECRET: "g-secret",
+      GITHUB_CLIENT_ID: "gh-id",
+      GITHUB_CLIENT_SECRET: "gh-secret",
+    },
+    async () => {
+      const auth = getAuth()!;
+      assert.ok(auth);
+      for (const provider of ["google", "github"]) {
+        const res = await auth.handler(
+          new Request("https://schema.example/api/auth/sign-in/social", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              origin: "https://schema.example",
+            },
+            body: JSON.stringify({ provider, callbackURL: "/admin" }),
+          }),
+        );
+        assert.equal(res.status, 200, provider);
+        const url = new URL((await res.json()).url);
+        assert.equal(
+          url.searchParams.get("redirect_uri"),
+          `https://schema.example/api/auth/callback/${provider}`,
+        );
+        if (provider === "github")
+          assert.ok(
+            url.searchParams.get("scope")!.split(" ").includes("user:email"),
+          );
+        else
+          assert.ok(
+            url.searchParams.get("scope")!.split(" ").includes("email"),
+          );
+      }
+      // Email/password is disabled.
+      const res = await auth.handler(
+        new Request("https://schema.example/api/auth/sign-up/email", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "https://schema.example",
+          },
+          body: JSON.stringify({
+            email: "a@example.com",
+            password: "x".repeat(20),
+            name: "a",
+          }),
+        }),
+      );
+      assert.ok(res.status >= 400);
+    },
+  ).finally(() => setAuthDatabaseForTests(null));
 });

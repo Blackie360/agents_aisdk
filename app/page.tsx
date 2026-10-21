@@ -20,6 +20,11 @@ import { formats, examples } from "@/lib/importers/catalog";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
 import { readApiResponse } from "@/lib/services/api-response";
 import { Explanation } from "@/components/schema/explanation";
+import {
+  AccountMenu,
+  SignupPrompt,
+  type Provider,
+} from "@/components/auth/account";
 import { createPreflightGuard } from "@/lib/importers/preflight";
 import { importInBrowser, warmParser } from "@/lib/services/browser-import";
 import { Format, Schema, Table } from "@/lib/types/schema";
@@ -157,6 +162,11 @@ export default function HomePage() {
     [error, setError] = useState("");
   const [explanation, setExplanation] = useState(""),
     [aiBusy, setAiBusy] = useState(false);
+  const [signup, setSignup] = useState<{
+    message: string;
+    providers: Provider[];
+  } | null>(null);
+  const [freeLeft, setFreeLeft] = useState<number | null>(null);
   const [provider, setProvider] = useState<AIProvider>("xai");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -215,6 +225,7 @@ export default function HomePage() {
     const version = generation.current;
     setAiBusy(true);
     setExplanation("");
+    setSignup(null);
     try {
       const response = await fetch("/api/schema-explanation", {
         method: "POST",
@@ -227,7 +238,33 @@ export default function HomePage() {
         }),
         signal: AbortSignal.timeout(65_000),
       });
+      if (response.status === 401) {
+        const denied = await response
+          .clone()
+          .json()
+          .catch(() => null);
+        if (denied?.error === "signup_required") {
+          if (version === generation.current)
+            setSignup({
+              message:
+                typeof denied.message === "string"
+                  ? denied.message.slice(0, 300)
+                  : "Sign in to keep explaining schemas, or bring your own API key.",
+              providers: Array.isArray(denied.providers)
+                ? denied.providers.filter((p: unknown) =>
+                    ["google", "github"].includes(p as string),
+                  )
+                : [],
+            });
+          return;
+        }
+      }
       const data = await readApiResponse(response);
+      const left = Number(
+        response.headers.get("x-free-explanations-remaining") ?? NaN,
+      );
+      if (version === generation.current)
+        setFreeLeft(Number.isFinite(left) ? left : null);
       if (typeof data.explanation !== "string" || !data.explanation.trim())
         throw new Error(
           "The server returned an empty AI explanation. Your diagram remains available.",
@@ -271,15 +308,18 @@ export default function HomePage() {
             </h1>
           </div>
         </div>
-        <a
-          href="#support"
-          onClick={() => {
-            if (supportDetails.current) supportDetails.current.open = true;
-          }}
-          className="text-xs text-muted-foreground hover:text-teal-800"
-        >
-          Supported formats <ArrowUpRight className="inline" size={13} />
-        </a>
+        <div className="flex items-center gap-4">
+          <a
+            href="#support"
+            onClick={() => {
+              if (supportDetails.current) supportDetails.current.open = true;
+            }}
+            className="text-xs text-muted-foreground hover:text-teal-800"
+          >
+            Supported formats <ArrowUpRight className="inline" size={13} />
+          </a>
+          <AccountMenu />
+        </div>
       </header>
       <section className="hero px-5 md:px-10 pt-10 pb-8">
         <div className="flex flex-wrap gap-6 items-end justify-between">
@@ -749,7 +789,23 @@ export default function HomePage() {
                 clears it. Leave blank to use a configured server key.
               </p>
             </div>
-            <Explanation text={explanation} />
+            {signup ? (
+              <SignupPrompt
+                message={signup.message}
+                providers={signup.providers}
+              />
+            ) : (
+              <Explanation text={explanation} />
+            )}
+            {freeLeft !== null && !signup && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {freeLeft === 0
+                  ? "No free explanations left. Sign in to keep going."
+                  : freeLeft === 1
+                    ? "1 free explanation left. Sign in to keep going."
+                    : `${freeLeft} free explanations left.`}
+              </p>
+            )}
           </div>
         </section>
       )}

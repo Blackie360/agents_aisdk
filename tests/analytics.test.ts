@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isUsageEvent } from "../lib/analytics/events";
-import { adminAuthorized } from "../lib/analytics/auth";
+import { setSessionResolverForTests } from "../lib/auth/server";
 import { GET } from "../app/api/admin/usage/route";
 import { POST } from "../app/api/usage/route";
 const event = {
@@ -20,31 +20,33 @@ test("usage allows bounded metadata only, never schema contents", () => {
   ])
     assert.equal(isUsageEvent(bad), false);
 });
-test("admin fails closed without a valid configured password, and protects data", async () => {
-  const old = process.env.ADMIN_PASSWORD;
+test("admin requires a verified ADMIN_EMAILS session, and protects data", async () => {
+  const oldEmails = process.env.ADMIN_EMAILS;
   const db = process.env.DATABASE_URL;
+  let user: any = null;
+  setSessionResolverForTests(async () => user);
   try {
     delete process.env.DATABASE_URL;
-    delete process.env.ADMIN_PASSWORD;
-    const request = (key: string) =>
-      new Request("https://example.com/api/admin/usage", {
-        headers: { authorization: `Bearer ${key}` },
-      });
-    assert.equal(adminAuthorized(request("")), false);
-    process.env.ADMIN_PASSWORD = "short";
-    assert.equal(adminAuthorized(request("short")), false);
-    process.env.ADMIN_PASSWORD = "fifteen-chars-x";
-    assert.equal(adminAuthorized(request("fifteen-chars-x")), false);
-    process.env.ADMIN_PASSWORD = "sixteen-chars-ok";
-    assert.equal((await GET(request("wrong"))).status, 401);
-    const good = request(process.env.ADMIN_PASSWORD);
-    assert.equal(adminAuthorized(good), true);
-    const response = await GET(good);
-    assert.equal(response.status, 503);
+    const request = () => new Request("https://example.com/api/admin/usage");
+    process.env.ADMIN_EMAILS = " Felix@Example.com , ops@example.com";
+    const none = await GET(request());
+    assert.equal(none.status, 401);
+    assert.equal((await none.json()).code, "SIGN_IN_REQUIRED");
+    user = { id: "1", email: "someone@example.com", emailVerified: true };
+    assert.equal((await GET(request())).status, 403);
+    // An unverified provider email never grants admin.
+    user = { id: "2", email: "felix@example.com", emailVerified: false };
+    assert.equal((await GET(request())).status, 403);
+    user = { id: "3", email: "FELIX@example.COM", emailVerified: true };
+    const response = await GET(request());
+    assert.equal(response.status, 503); // authorized; usage DB not configured
     assert.equal(response.headers.get("cache-control"), "no-store");
+    delete process.env.ADMIN_EMAILS;
+    assert.equal((await GET(request())).status, 403);
   } finally {
-    if (old === undefined) delete process.env.ADMIN_PASSWORD;
-    else process.env.ADMIN_PASSWORD = old;
+    setSessionResolverForTests(null);
+    if (oldEmails === undefined) delete process.env.ADMIN_EMAILS;
+    else process.env.ADMIN_EMAILS = oldEmails;
     if (db === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = db;
   }

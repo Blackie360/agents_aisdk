@@ -1,10 +1,12 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { UsageSummary } from "@/lib/analytics/events";
+import { SignInButtons, signOut, useAccount } from "@/components/auth/account";
 
 export default function AdminPage() {
-  const [password, setPassword] = useState("");
+  const account = useAccount();
+  const [denied, setDenied] = useState<"signin" | "forbidden" | null>(null);
   const [data, setData] = useState<UsageSummary | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -15,12 +17,22 @@ export default function AdminPage() {
     setError("");
     try {
       const response = await fetch("/api/admin/usage", {
-        headers: { Authorization: `Bearer ${password}` },
         cache: "no-store",
         signal: AbortSignal.timeout(10_000),
       });
       const result = await response.json();
       if (version !== generation.current) return;
+      setDenied(
+        response.status === 401
+          ? "signin"
+          : response.status === 403
+            ? "forbidden"
+            : null,
+      );
+      if (response.status === 401 || response.status === 403) {
+        setData(null);
+        return;
+      }
       if (!response.ok)
         throw new Error(result.message || "Could not load usage.");
       setData(result);
@@ -33,13 +45,9 @@ export default function AdminPage() {
       if (version === generation.current) setBusy(false);
     }
   }
-  function lock() {
-    generation.current++;
-    setData(null);
-    setPassword("");
-    setError("");
-    setBusy(false);
-  }
+  useEffect(() => {
+    void load();
+  }, []);
   const sum = (kind: string, outcome?: string) =>
     data?.totals
       .filter((r) => r.kind === kind && (!outcome || r.outcome === outcome))
@@ -59,43 +67,38 @@ export default function AdminPage() {
             Private activity totals · UTC
           </p>
         </div>
-        {data && (
-          <button onClick={lock} className="rounded-xl border px-4 py-2">
-            Lock dashboard
-          </button>
+        {account?.user && (
+          <div className="flex flex-col items-end gap-2 text-sm">
+            <span className="text-slate-600">{account.user.email}</span>
+            <button
+              onClick={() => void signOut()}
+              className="rounded-xl border px-4 py-2"
+            >
+              Sign out
+            </button>
+          </div>
         )}
       </header>
-      {!data && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void load();
-          }}
-          className="max-w-md space-y-4 rounded-2xl border bg-white p-6"
-        >
-          <label htmlFor="admin-password" className="block font-medium">
-            Admin password
-          </label>
-          <input
-            id="admin-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            maxLength={512}
-            className="w-full rounded-xl border p-3"
-          />
-          <button
-            disabled={busy}
-            className="rounded-xl bg-teal-700 px-5 py-3 text-white disabled:opacity-60"
-          >
-            {busy ? "Loading usage…" : "Open dashboard"}
-          </button>
+      {!data && denied && (
+        <section className="max-w-md space-y-4 rounded-2xl border bg-white p-6">
+          <h2 className="font-medium">
+            {denied === "signin" ? "Admin sign-in" : "Not an admin account"}
+          </h2>
           <p className="text-sm text-slate-600">
-            The password stays in memory until you lock this page or refresh.
+            {denied === "signin"
+              ? "Sign in with an account whose verified email is on the admin list."
+              : "You're signed in, but this email isn't on the admin list. Sign out and use an admin account."}
           </p>
-        </form>
+          {denied === "signin" && (
+            <SignInButtons
+              providers={account?.providers ?? []}
+              callbackURL="/admin"
+            />
+          )}
+        </section>
+      )}
+      {!data && !denied && busy && (
+        <p className="text-sm text-slate-600">Loading usage…</p>
       )}
       {error && (
         <p
