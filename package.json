@@ -9,7 +9,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node scripts/test.mjs",
     "test:e2e": "playwright test",
-    "lint": "prettier --check app lib components/schema tests scripts playwright.config.ts"
+    "lint": "prettier --check app lib components/schema components/auth tests scripts playwright.config.ts"
   },
   "dependencies": {
     "@mrleebo/prisma-ast": "0.16.0",
@@ -26,11 +26,13 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.1.2",
     "@xyflow/react": "^12.9.3",
+    "better-auth": "^1.7.12",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.446.0",
     "next": "16.4.2",
     "node-sql-parser": "5.4.0",
+    "pg": "^8.23.1",
     "pgsql-ast-parser": "12.0.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -42,6 +44,7 @@
     "@playwright/test": "^1.58.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "esbuild": "^0.28.2",

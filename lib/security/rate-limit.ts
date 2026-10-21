@@ -14,7 +14,7 @@ export type LimitRule = {
 };
 export type LimitCheck = { rule: LimitRule; subject: string };
 export type LimitResult =
-  | { status: "ok" }
+  | { status: "ok"; hits?: number[] }
   | { status: "limited"; rule: string; retryAfter: number }
   | { status: "unavailable" };
 
@@ -39,6 +39,12 @@ export const rules = {
     name: "server-key-global-day",
     limit: positiveInt("SERVER_KEY_DAILY_GLOBAL", 300),
     windowSeconds: DAY,
+  }),
+  /** Free server-key explanations for signed-out visitors, per IP bucket. */
+  anonTrial: (): LimitRule => ({
+    name: "anon-trial",
+    limit: positiveInt("ANON_TRIAL_LIMIT", 3),
+    windowSeconds: positiveInt("ANON_TRIAL_WINDOW_DAYS", 30) * DAY,
   }),
   adminBurst: (): LimitRule => ({
     name: "admin-burst",
@@ -142,6 +148,53 @@ export function isProduction(): boolean {
   return process.env.NODE_ENV === "production" || !!process.env.VERCEL_ENV;
 }
 
+function windowFor(rule: LimitRule, subject: string, now: number) {
+  const seconds = now / 1000;
+  const start = Math.floor(seconds / rule.windowSeconds) * rule.windowSeconds;
+  const end = start + rule.windowSeconds;
+  return {
+    rule,
+    bucket: `${rule.name}:${subject}:${start}`,
+    expires: new Date(end * 1000).toISOString(),
+    retryAfter: Math.max(1, Math.ceil(end - seconds)),
+  };
+}
+
+export type PeekResult =
+  { status: "ok"; hits: number } | { status: "unavailable" };
+
+/**
+ * Read the current count for one check without incrementing it. Same
+ * availability rules as consume(): missing salt or store in production, or
+ * any store error, is "unavailable".
+ */
+export async function peek(
+  check: LimitCheck,
+  now = Date.now(),
+): Promise<PeekResult> {
+  const url = process.env.DATABASE_URL;
+  if (!salt()) return { status: "unavailable" };
+  if (!url)
+    return isProduction()
+      ? { status: "unavailable" }
+      : { status: "ok", hits: 0 };
+  try {
+    const sql = neon(url, {
+      fetchOptions: { signal: AbortSignal.timeout(2500) },
+    });
+    const { bucket } = windowFor(check.rule, check.subject, now);
+    const rows =
+      await sql`SELECT hits FROM schemamind_rate_limits WHERE bucket = ${bucket}`;
+    if (!Array.isArray(rows)) return { status: "unavailable" };
+    const hits = rows.length ? Number((rows[0] as any).hits) : 0;
+    return Number.isFinite(hits)
+      ? { status: "ok", hits }
+      : { status: "unavailable" };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
 /**
  * Count one hit against every check. Returns "unavailable" when the shared
  * store or RATE_LIMIT_SALT is missing in production, or the store errors; callers that spend the
@@ -161,18 +214,9 @@ export async function consume(
     const sql = neon(url, {
       fetchOptions: { signal: AbortSignal.timeout(2500) },
     });
-    const seconds = now / 1000;
-    const windows = checks.map(({ rule, subject }) => {
-      const start =
-        Math.floor(seconds / rule.windowSeconds) * rule.windowSeconds;
-      const end = start + rule.windowSeconds;
-      return {
-        rule,
-        bucket: `${rule.name}:${subject}:${start}`,
-        expires: new Date(end * 1000).toISOString(),
-        retryAfter: Math.max(1, Math.ceil(end - seconds)),
-      };
-    });
+    const windows = checks.map(({ rule, subject }) =>
+      windowFor(rule, subject, now),
+    );
     const results = await sql.transaction(
       windows.map(
         (w) => sql`INSERT INTO schemamind_rate_limits (bucket, hits, expires_at)
@@ -195,7 +239,10 @@ export async function consume(
           retryAfter: windows[i].retryAfter,
         };
     }
-    return { status: "ok" };
+    return {
+      status: "ok",
+      hits: windows.map((_, i) => Number((results[i] as any)?.[0]?.hits)),
+    };
   } catch {
     // Never log store errors: they can contain connection credentials.
     return { status: "unavailable" };
