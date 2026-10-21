@@ -105,3 +105,24 @@ export function finalize(schema: Schema): Schema {
   });
   return JSON.parse(JSON.stringify(schema)) as Schema;
 }
+
+/** 1-based line and column of a character offset. */
+export function lineAndColumn(text: string, offset: number) {
+  const before = text.slice(0, Math.max(0, offset));
+  const lines = before.split("\n");
+  return { line: lines.length, column: lines.at(-1)!.length + 1 };
+}
+/** Plain, located syntax error shown to the user (never raw parser output). */
+export function syntaxError(
+  label: string,
+  line: number,
+  column: number,
+  detail: string,
+) {
+  return new Error(
+    `Invalid ${label} syntax at line ${line}, column ${column}: ${detail}. Check punctuation and the selected format.`,
+  );
+}
+const shown = (s: string) =>
+  JSON.stringify(s.length > 24 ? s.slice(0, 24) + "…" : s);
+export { shown as quoteToken };

@@ -19,6 +19,7 @@ import { mermaid } from "@/lib/services/exports";
 import { formats, examples } from "@/lib/importers/catalog";
 import { showcase } from "@/lib/importers/showcase";
 import { isSchemaCandidate } from "@/lib/importers/discovery";
+import { readSchemaFile } from "@/lib/importers/file-check";
 import { readApiResponse } from "@/lib/services/api-response";
 import { Explanation } from "@/components/schema/explanation";
 import {
@@ -109,7 +110,7 @@ export default function HomePage() {
         );
       } catch (error) {
         event.preventDefault();
-        setError(error instanceof Error ? error.message : "Input too large.");
+        rejectInput(error);
       }
     };
     element.addEventListener("beforeinput", guard);
@@ -123,6 +124,15 @@ export default function HomePage() {
       /* Retry when requested. */
     }
   }, []);
+  useEffect(() => {
+    // Fetch the selected format's parser ahead of Visualize.
+    if (format === "auto") return;
+    try {
+      warmParser(format);
+    } catch {
+      /* Loaded on demand instead. */
+    }
+  }, [format]);
   const [draftReady, setDraftReady] = useState(false);
   const [draftStatus, setDraftStatus] = useState("");
   useEffect(() => {
@@ -193,6 +203,8 @@ export default function HomePage() {
   // state instead of an empty placeholder while the app hydrates.
   const [drawing, setDrawing] = useState<null | "example" | "draft">("example");
   const [drawError, setDrawError] = useState("");
+  // A restored draft that no longer parses: a quiet hint, not an error.
+  const [drawHint, setDrawHint] = useState("");
   const lastDraw = useRef<() => void>(() => {});
   const [explanation, setExplanation] = useState(""),
     [aiBusy, setAiBusy] = useState(false);
@@ -208,6 +220,16 @@ export default function HomePage() {
   const folder = useRef<HTMLInputElement>(null);
   const [candidates, setCandidates] = useState<File[]>([]);
   const file = useRef<HTMLInputElement>(null);
+  /** Rejected input: show why, and don't leave a stale "Draft saved" beside it. */
+  function rejectInput(error: unknown, fallback = "Input too large.") {
+    setError(error instanceof Error ? error.message : fallback);
+    // The rejected text was never accepted, so it was not saved; say what is.
+    setDraftStatus((status) =>
+      status.startsWith("Draft saved") || status === "Saving draft…"
+        ? "Previous draft kept in this browser."
+        : status,
+    );
+  }
   function clearResult() {
     generation.current++;
     setSchema(null);
@@ -218,33 +240,25 @@ export default function HomePage() {
     setError("");
     setDrawing(null);
     setDrawError("");
+    setDrawHint("");
   }
   // Latest Open file request; older reads are ignored when they finish.
   const fileRequest = useRef(0);
   async function openFile(f: File) {
     // Nothing is cleared until the file is accepted: an empty or rejected
-    // file must not wipe the editor, the diagram or the saved draft.
+    // file must not wipe the editor, the diagram or the saved draft
+    // (readSchemaFile rejects empty and whitespace-only files).
     const request = ++fileRequest.current;
-    if (f.size > 200_000) {
-      setError("File exceeds 200 KB.");
-      return;
-    }
     try {
-      const content = await f.text();
+      const content = await readSchemaFile(f);
       if (request !== fileRequest.current) return;
-      if (!content.trim()) {
-        setError("This file is empty.");
-        return;
-      }
       validateInput(content);
       clearResult();
       setInput(content);
       setFormat("auto");
-    } catch {
+    } catch (e) {
       if (request === fileRequest.current)
-        setError(
-          "Could not import this file. Check the 200 KB and 150 entity limits.",
-        );
+        rejectInput(e, "Could not read this file.");
     }
   }
   async function visualize() {
@@ -290,6 +304,10 @@ export default function HomePage() {
       if (kind === "example" || e instanceof ParserLoadError)
         setDrawError(
           e instanceof Error ? e.message : "Could not draw the diagram.",
+        );
+      else
+        setDrawHint(
+          "Your saved draft couldn't be drawn. Edit it or select Visualize.",
         );
     } finally {
       if (version === generation.current) setDrawing(null);
@@ -409,7 +427,7 @@ export default function HomePage() {
             </p>
           </div>
         </div>
-        <div className="example-chips flex flex-nowrap md:flex-wrap items-center gap-2 mt-3 md:mt-7 overflow-x-auto -mx-5 px-5 md:mx-0 md:px-0">
+        <div className="example-chips flex flex-nowrap md:flex-wrap items-center gap-2 mt-3 md:mt-7 overflow-x-auto -mx-5 pl-5 pr-12 md:mx-0 md:px-0">
           <span className="text-xs text-muted-foreground mr-2 shrink-0 whitespace-nowrap">
             Try an example
           </span>
@@ -500,9 +518,7 @@ export default function HomePage() {
                 );
               } catch (error) {
                 event.preventDefault();
-                setError(
-                  error instanceof Error ? error.message : "Input too large.",
-                );
+                rejectInput(error);
               }
             }}
             spellCheck={false}
@@ -513,7 +529,7 @@ export default function HomePage() {
                 validateInput(e.target.value);
                 setInput(e.target.value);
               } catch (e) {
-                setError(e instanceof Error ? e.message : "Input too large.");
+                rejectInput(e);
               }
             }}
             className="w-full h-64 resize-y rounded-xl border bg-background p-3 font-mono text-xs leading-6 focus:outline-teal-700"
@@ -654,6 +670,13 @@ export default function HomePage() {
                   !schema || schema.tables.some((t) => t.kind === "document")
                 }
                 onClick={() => download("mmd")}
+                title={
+                  schema?.tables.some((t) => t.kind === "document")
+                    ? "Mermaid ERD is for relational tables. Use JSON export for document structures."
+                    : !schema
+                      ? "Visualize a schema first."
+                      : undefined
+                }
                 className="disabled:opacity-30"
               >
                 Mermaid ERD
@@ -679,7 +702,7 @@ export default function HomePage() {
                 />
                 <p className="font-medium">Parsing locally…</p>
                 <p className="text-xs text-muted-foreground">
-                  You can keep editing while the diagram is prepared.
+                  You can keep editing. Changing the schema cancels this run.
                 </p>
               </div>
             ) : drawing && !diagram ? (
@@ -754,8 +777,11 @@ export default function HomePage() {
                 <h3 className="text-xl tracking-tight mt-8">
                   Your diagram starts here
                 </h3>
-                <p className="mt-3 text-sm text-muted-foreground max-w-xs leading-6">
-                  Add a schema, then select Visualize.
+                <p
+                  className="mt-3 text-sm text-muted-foreground max-w-xs leading-6"
+                  aria-live="polite"
+                >
+                  {drawHint || "Add a schema, then select Visualize."}
                 </p>
                 <button
                   disabled={busy}

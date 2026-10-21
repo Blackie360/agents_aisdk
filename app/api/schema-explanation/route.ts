@@ -2,6 +2,8 @@ import { recordUsage } from "@/lib/analytics/store";
 import { randomUUID } from "node:crypto";
 import {
   aiProviders,
+  classifyProviderFailure,
+  indefiniteArticle,
   AIProvider,
   providerRequest,
   providerText,
@@ -227,33 +229,44 @@ async function handle(req: Request, ctx: Context): Promise<Response> {
       signal: AbortSignal.timeout(55_000),
       body: JSON.stringify(request.body),
     });
-    // Provider bodies can contain credentials or request fragments. Never echo them.
-    if (response.status === 401 || response.status === 403)
-      return reply(
-        {
-          code: "AI_ACCESS_DENIED",
-          message: `${config.name} rejected the API key or model access. Check your key and permissions.`,
-        },
-        401,
-      );
-    if (response.status === 429)
-      return reply(
-        {
-          message: `${config.name} usage or rate limit reached. Check your account quota and try again later.`,
-        },
-        429,
-      );
-    if (
-      response.status === 400 ||
-      response.status === 404 ||
-      response.status === 422
-    )
-      return reply(
-        {
-          message: `${config.name} rejected the request or model. Check the model ID and account access (provider HTTP ${response.status}).`,
-        },
-        502,
-      );
+    // Provider bodies can contain credentials or request fragments. They are
+    // only inspected to classify the failure, never echoed.
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => "")).slice(0, 4000);
+      const failure = classifyProviderFailure(response.status, detail);
+      if (failure === "invalid_key")
+        return supplied
+          ? reply(
+              {
+                code: "AI_INVALID_KEY",
+                message: `Invalid API key for ${config.name}. Check that it is ${indefiniteArticle(config.name)} ${config.name} key (not another provider's), copied in full and still active.`,
+              },
+              401,
+            )
+          : reply(
+              {
+                code: "SERVER_KEY_UNAVAILABLE",
+                message:
+                  "Free explanations are unavailable right now. Enter your own API key to continue.",
+              },
+              503,
+            );
+      if (failure === "rate_limit")
+        return reply(
+          {
+            message: `${config.name} usage or rate limit reached. Check your account quota and try again later.`,
+          },
+          429,
+        );
+      if (failure === "model")
+        return reply(
+          {
+            code: "AI_MODEL_REJECTED",
+            message: `${config.name} rejected the request or model. Check the model ID and account access (provider HTTP ${response.status}).`,
+          },
+          502,
+        );
+    }
     if (!response.ok)
       return reply(
         {

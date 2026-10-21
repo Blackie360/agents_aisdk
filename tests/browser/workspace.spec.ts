@@ -240,12 +240,13 @@ test("a delayed earlier file cannot overwrite a newer selection", async ({
   page,
 }) => {
   await page.addInitScript(() => {
-    const read = File.prototype.text;
-    File.prototype.text = async function () {
-      const text = await read.call(this);
-      if (this.name === "slow.sql")
+    // Open file reads the whole file with arrayBuffer() after sniffing its head.
+    const read = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = async function () {
+      const bytes = await read.call(this);
+      if (this instanceof File && this.name === "slow.sql")
         await new Promise((resolve) => setTimeout(resolve, 500));
-      return text;
+      return bytes;
     };
   });
   await page.goto("/");

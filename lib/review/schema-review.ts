@@ -40,6 +40,24 @@ export function reviewSchema(schema: Schema): Finding[] {
         "Choose a stable column or composite key if rows need a unique identity. Keyless staging or reporting tables may be intentional.",
       );
   }
+  // References to entities missing from this import (any format): the
+  // relationship is dropped from the diagram, so call it out here too.
+  for (const table of schema.tables) {
+    const missing = new Map<string, string[]>();
+    for (const column of table.columns)
+      if (column.foreignKey?.unresolved)
+        missing.set(column.foreignKey.table, [
+          ...(missing.get(column.foreignKey.table) ?? []),
+          column.name,
+        ]);
+    for (const [target, columns] of missing)
+      add(
+        "warning",
+        table.id,
+        "Unresolved reference",
+        `${columns.join(", ")} → ${target}: "${target}" is not in this import, so the relationship is not drawn. Import the referenced entity too, or check its name.`,
+      );
+  }
   const same = (a: string[], b: string[]) =>
     a.length === b.length && a.every((name) => b.includes(name));
   for (const relation of schema.relationships) {

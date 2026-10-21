@@ -26,6 +26,9 @@ export function preflight(input: string) {
 }
 export function importError(error: unknown): string {
   const message = error instanceof Error ? error.message : "Import failed.";
+  // Parsers already produce a plain, located message.
+  if (/^Invalid [\w ]+ syntax at line \d+, column \d+: /.test(message))
+    return message;
   if (
     /syntax error|unexpected .*token|expected .*but|parse error/i.test(message)
   ) {

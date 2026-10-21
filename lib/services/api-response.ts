@@ -20,7 +20,7 @@ export async function readApiResponse(response: Response): Promise<any> {
   }
   if (
     (response.status === 401 || response.status === 403) &&
-    data?.code !== "AI_ACCESS_DENIED"
+    !["AI_ACCESS_DENIED", "AI_INVALID_KEY"].includes(data?.code)
   )
     throw new Error(
       `Request denied (HTTP ${response.status}). Check deployment access and your API key.`,

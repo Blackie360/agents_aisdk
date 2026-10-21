@@ -114,3 +114,38 @@ export function providerText(provider: AIProvider, data: any): string {
     .map((p: any) => p.text)
     .join("\n");
 }
+
+export type ProviderFailure = "invalid_key" | "model" | "rate_limit" | "other";
+// Providers report a bad key differently: OpenAI, Anthropic and Moonshot use
+// 401; xAI and Gemini answer 400 with an "API key" message.
+const KEY_ERROR =
+  /api[\s_-]?key|incorrect[^.]{0,40}key|invalid[^.]{0,40}(?:key|token|credential)|unauthori[sz]ed|authenticat|API_KEY_INVALID|permission[_ ]denied/i;
+const MODEL_ERROR = /model/i;
+/** Classify a failed provider call. The body is inspected, never returned. */
+export function classifyProviderFailure(
+  status: number,
+  body: string,
+): ProviderFailure {
+  if (status === 429) return "rate_limit";
+  if (status === 401) return "invalid_key";
+  if (status === 403)
+    return MODEL_ERROR.test(body) && !KEY_ERROR.test(body)
+      ? "model"
+      : "invalid_key";
+  if ([400, 404, 422].includes(status))
+    return KEY_ERROR.test(body) && !/model[^.]{0,40}not found/i.test(body)
+      ? "invalid_key"
+      : "model";
+  return "other";
+}
+
+/**
+ * "a" or "an" by sound: vowels ("an OpenAI key"), and initialisms whose first
+ * letter is said with a vowel sound ("an xAI key", "an LLM"); otherwise "a".
+ */
+export function indefiniteArticle(word: string): "a" | "an" {
+  if (/^[aeiou]/i.test(word)) return "an";
+  // Spelled-out initialisms (xAI, LLM, SQL): F H L M N R S X sound like "eh-".
+  if (/^[FHLMNRSXfhlmnrsx](?=[A-Z]|$)/.test(word)) return "an";
+  return "a";
+}
